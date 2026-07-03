@@ -88,6 +88,32 @@ describe("seo.meta-tags", () => {
     expect(outcome.score).toBe(100); // warnings do not reduce the score
   });
 
+  it("flags multiple titles and canonicals as errors and multiple h1s as a warning", async () => {
+    const outcome = await metaTagsCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/",
+          body: `<html lang="en"><head>
+            <title>First</title>
+            <title>Second</title>
+            <meta name="description" content="A perfectly reasonable description that sits comfortably within the limits.">
+            <link rel="canonical" href="https://example.com/">
+            <link rel="canonical" href="https://example.com/other">
+          </head><body><h1>One</h1><h1>Two</h1></body></html>`,
+        },
+      ]),
+    );
+    const errors = findingsBySeverity(outcome.findings, "error");
+    expect(errors).toHaveLength(2);
+    expect(errors.some((finding) => finding.message.includes("2 <title>"))).toBe(true);
+    expect(errors.some((finding) => finding.message.includes("2 canonical"))).toBe(true);
+    const warnings = findingsBySeverity(outcome.findings, "warning");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.message).toContain("2 <h1>");
+    expect(outcome.findings.every((finding) => finding.url === "https://example.com/")).toBe(true);
+    expect(outcome.score).toBe(0); // the only page has error findings
+  });
+
   it("flags duplicate titles as errors and duplicate descriptions as warnings", async () => {
     const outcome = await metaTagsCheck.run(
       contextFor([
