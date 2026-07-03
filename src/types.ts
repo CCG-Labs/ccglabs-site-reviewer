@@ -72,6 +72,8 @@ export interface CheckContext {
   baseUrl: string;
   environment: Environment;
   config: ResolvedConfig;
+  /** crawl results shared by all checks — one fetch per page for the whole run */
+  pages: PageStore;
   fetch: RateLimitedFetch;
   logger: Logger;
 }

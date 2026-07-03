@@ -1,5 +1,6 @@
 import packageJson from "../../package.json" with { type: "json" };
 import { resolveConfig } from "../config/resolve.js";
+import { crawlSite } from "../crawl/crawler.js";
 import { createFetcher, SiteUnreachableError } from "../fetch/fetcher.js";
 import { MANUAL_CHECKLIST } from "../report/manual-checklist.js";
 import {
@@ -40,6 +41,12 @@ export async function runReview(options: RunReviewOptions): Promise<ReviewReport
     throw new SiteUnreachableError(`Cannot reach ${options.url}: ${message}`);
   }
 
+  const pages = await crawlSite({
+    baseUrl: options.url,
+    fetch: fetchFn,
+    maxPages: config.maxPages,
+  });
+
   const allChecks = [...builtinChecks, ...config.customChecks].map((check) =>
     applyOverride(check, config.checks[check.id]),
   );
@@ -48,6 +55,7 @@ export async function runReview(options: RunReviewOptions): Promise<ReviewReport
     baseUrl: options.url,
     environment: config.environment,
     config,
+    pages,
     fetch: fetchFn,
   });
 

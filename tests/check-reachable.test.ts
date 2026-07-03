@@ -3,6 +3,7 @@ import { reachableCheck } from "../src/checks/functionality/reachable.js";
 import { builtinChecks } from "../src/engine/registry.js";
 import { createFetcher } from "../src/fetch/fetcher.js";
 import type { CheckContext, ResolvedConfig } from "../src/types.js";
+import { fixturePageStore } from "./helpers/page-store.js";
 import { startServer, type TestServer } from "./helpers/server.js";
 
 let server: TestServer | undefined;
@@ -24,6 +25,7 @@ const contextFor = (baseUrl: string): CheckContext => ({
   baseUrl,
   environment: "local",
   config,
+  pages: fixturePageStore(),
   fetch: createFetcher(),
   logger: { debug: () => undefined },
 });
@@ -64,5 +66,15 @@ describe("functionality.reachable", () => {
     expect(outcome.findings[0]?.message).toContain("redirect");
     expect(outcome.findings[0]?.message).toContain("https://elsewhere.invalid/");
     expect(outcome.findings[0]?.recommendation).not.toBe("");
+  });
+
+  it("prefers the crawled page over a fresh fetch", async () => {
+    const outcome = await reachableCheck.run({
+      ...contextFor("http://unused.invalid"),
+      baseUrl: "http://unused.invalid",
+      fetch: () => Promise.reject(new Error("must not fetch")),
+      pages: fixturePageStore([{ url: "http://unused.invalid/" }]),
+    });
+    expect(outcome).toEqual({ score: 100, findings: [] });
   });
 });
