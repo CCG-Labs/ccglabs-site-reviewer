@@ -186,6 +186,43 @@ Each PR leaves the tool releasable and usable against a real site.
 
 Later candidates (post-v1 backlog): HTML validity (html-validate), redirect-map validation, visual regression, keyboard-nav asserts, consent gating, cross-browser projects, DNS/expiry monitoring.
 
+## Codebase quality & security attestation
+
+The tool must be able to attest to its own quality — it's a trust product. Established in PR 1 (scaffold), enforced on every PR thereafter.
+
+### Merge-blocking CI gates (every PR)
+
+- **Typecheck**: `tsc --noEmit`, strict mode, no `any` escapes (`@typescript-eslint/no-explicit-any` as error).
+- **Lint + format**: ESLint (typescript-eslint strict + security plugin) and Prettier — CI fails on any diff.
+- **Tests**: vitest with coverage gate — v8 coverage ≥ 90% lines/branches on `src/` (ratcheted, never lowered; the engine and every check are TDD'd per superpowers:test-driven-development).
+- **Build**: tsup build + `publint` + `arethetypeswrong` so the published package surface (ESM exports, types) is verified, not assumed.
+- **Report-schema contract test**: the exported zod schema validates all fixture reports; any schema change requires a `reportVersion` bump enforced by test.
+- **Secret scanning**: gitleaks action.
+- **Dependency audit**: `npm audit --audit-level=high` fails the build.
+- Branch protection on `main`: PRs only, required status checks, no force push (applied via the CCG Labs create-repo baseline when the repo is pushed to GitHub).
+
+### Supply chain
+
+- **Minimal dependency policy**: each new runtime dependency is vetted with the eval-dependency process before adoption; prefer zero-dep or well-audited packages (cheerio, zod, commander are the expected core). Browser tier (playwright, lighthouse) ships as optional peer deps so consumers who never run browser checks never install them.
+- Committed lockfile; `npm ci` only in CI. Dependabot security updates + weekly grouped version PRs.
+- **CodeQL** analysis on PRs and a weekly schedule.
+- **Publishing**: releases only from a GitHub Actions release workflow with npm **provenance attestation** (`npm publish --provenance` via OIDC — publicly verifiable build-to-package link); no local publishes; npm account 2FA; tags signed.
+- `SECURITY.md` with disclosure policy; OpenSSF Scorecard badge once public.
+
+### Runtime security posture (the tool touches untrusted input)
+
+The tool fetches and parses arbitrary remote HTML — treat every byte as hostile:
+
+- **No dynamic evaluation** of fetched content, ever (JSON-LD is `JSON.parse`d in try/catch, never evaluated); no `eval`/`new Function`/`child_process` in runtime code (enforced by ESLint rules).
+- **SSRF discipline**: the crawler only follows same-origin links from the user-supplied base URL; redirects off-origin terminate the chain (recorded, not followed); no requests to link-derived hosts except explicit check targets (e.g., `og:image` HEAD) which are capped and rate-limited.
+- **Resource caps**: max response size per page (default 5 MB), max pages, per-request timeout — a malicious/broken site can't OOM or hang a CI run.
+- **Secret hygiene in output**: `requestHeaders` (staging auth) are redacted from the JSON report, debug payloads, and logs.
+- Every security-relevant PR (crawler, fetch helper, probes) gets a security-review pass before merge.
+
+### Review process per PR
+
+Each PR runs /code-review before merge; PRs touching the crawler/fetch layer or probe checks additionally get /security-review. The full suite (typecheck, lint, tests, build, audit, gitleaks, CodeQL) is required-green before merge.
+
 ## Manual sign-off (always in report)
 
 Content accuracy/tone proofread, real-device spot check, screen-reader pass, legal adequacy of policies, email deliverability, Search Console submission, rollback plan. The tool reports "automated scan passed," never "site is accessible/launch-ready."
