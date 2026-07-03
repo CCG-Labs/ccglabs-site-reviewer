@@ -18,6 +18,10 @@ export interface CrawlOptions {
   concurrency?: number;
 }
 
+function isHtmlContentType(headers: Record<string, string>): boolean {
+  return (headers["content-type"] ?? "").includes("text/html");
+}
+
 class SitePageStore implements PageStore {
   private readonly pages = new Map<string, CrawledPage>();
   constructor(private readonly crawlStats: CrawlStats) {}
@@ -33,7 +37,7 @@ class SitePageStore implements PageStore {
     return [...this.pages.values()];
   }
   htmlPages(): CrawledPage[] {
-    return this.all().filter((page) => (page.headers["content-type"] ?? "").includes("text/html"));
+    return this.all().filter((page) => isHtmlContentType(page.headers));
   }
   stats(): CrawlStats {
     return { ...this.crawlStats };
@@ -85,7 +89,7 @@ export async function crawlSite(options: CrawlOptions): Promise<PageStore> {
     } catch {
       return; // discovered but not scanned; the fetcher already retried once
     }
-    const isHtml = (result.headers["content-type"] ?? "").includes("text/html");
+    const isHtml = isHtmlContentType(result.headers);
     store.set({
       url,
       finalUrl: result.url,
