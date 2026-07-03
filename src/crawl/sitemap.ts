@@ -24,7 +24,7 @@ function parseSitemapXml(xml: string): ParsedSitemap {
 
 /**
  * Seed URLs from <origin>/sitemap.xml. Supports a plain urlset and one level
- * of sitemapindex. Only same-origin page URLs are returned. Absence, errors,
+ * of sitemapindex. Only page URLs within the allowed origins (default: the sitemap's own origin) are returned. Absence, errors,
  * and malformed XML all yield [] — a sitemap is a seed source, never a failure.
  */
 export async function fetchSitemapUrls(
