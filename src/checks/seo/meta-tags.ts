@@ -12,10 +12,13 @@ function noindexAllowlist(ctx: CheckContext): Set<string> {
 }
 
 function headerNoindex(page: CrawledPage): boolean {
+  // Each directive may carry a user-agent prefix ("googlebot: noindex"); strip
+  // it before matching. Safe for "unavailable_after: <date>" — the last token
+  // is the date and matches nothing.
   const directives = (page.headers["x-robots-tag"] ?? "")
     .toLowerCase()
     .split(",")
-    .map((directive) => directive.trim());
+    .map((directive) => directive.trim().split(":").pop()?.trim() ?? "");
   return directives.includes("noindex") || directives.includes("none");
 }
 

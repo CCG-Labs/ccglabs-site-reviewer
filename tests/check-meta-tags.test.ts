@@ -209,6 +209,26 @@ describe("seo.meta-tags", () => {
     expect(clean.findings.some((f) => f.message.includes("noindex"))).toBe(false);
   });
 
+  it("detects UA-prefixed X-Robots-Tag noindex and ignores unavailable_after dates", async () => {
+    const prefixedPage = {
+      url: "https://example.com/prefixed",
+      body: goodPage("Prefixed"),
+      headers: { "content-type": "text/html", "x-robots-tag": "googlebot: noindex, nofollow" },
+    };
+    const flagged = await metaTagsCheck.run(contextFor([prefixedPage], "production"));
+    expect(
+      findingsBySeverity(flagged.findings, "error").some((f) => f.message.includes("noindex")),
+    ).toBe(true);
+
+    const datedPage = {
+      url: "https://example.com/dated",
+      body: goodPage("Dated"),
+      headers: { "content-type": "text/html", "x-robots-tag": "unavailable_after: 2027-01-01" },
+    };
+    const clean = await metaTagsCheck.run(contextFor([datedPage], "production"));
+    expect(clean.findings.some((f) => f.message.includes("noindex"))).toBe(false);
+  });
+
   it("only evaluates 2xx HTML pages and returns 100 for an empty store", async () => {
     const outcome = await metaTagsCheck.run(
       contextFor([
