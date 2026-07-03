@@ -9,6 +9,8 @@ export interface FetcherOptions {
 
 export class SiteUnreachableError extends Error {}
 
+export class BodySizeCapError extends Error {}
+
 async function readBodyCapped(response: Response, maxBytes: number): Promise<string> {
   if (!response.body) return "";
   const reader = response.body.getReader();
@@ -21,7 +23,9 @@ async function readBodyCapped(response: Response, maxBytes: number): Promise<str
     received += value.byteLength;
     if (received > maxBytes) {
       await reader.cancel();
-      throw new Error(`Response body exceeded ${String(maxBytes)} bytes: ${response.url}`);
+      throw new BodySizeCapError(
+        `Response body exceeded ${String(maxBytes)} bytes: ${response.url}`,
+      );
     }
     text += decoder.decode(value, { stream: true });
   }
@@ -82,8 +86,8 @@ export function createFetcher(options: FetcherOptions = {}): RateLimitedFetch {
       try {
         return await attempt(url, method);
       } catch (error) {
-        // Size-cap violations are deliberate rejections, not transient network errors.
-        if (error instanceof Error && error.message.includes("exceeded")) throw error;
+        // Size-cap violations are deliberate rejections, not transient network errors — never retry them.
+        if (error instanceof BodySizeCapError) throw error;
         return await attempt(url, method);
       }
     } finally {

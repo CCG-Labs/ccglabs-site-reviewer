@@ -63,6 +63,15 @@ describe("createFetcher", () => {
     await expect(createFetcher({ timeoutMs: 200 })(server.url)).rejects.toThrow();
   });
 
+  it("times out responses that stream the body forever", async () => {
+    server = await startServer((_req, res) => {
+      res.writeHead(200);
+      res.write("x");
+      /* never end the response */
+    });
+    await expect(createFetcher({ timeoutMs: 200 })(server.url)).rejects.toThrow();
+  });
+
   it("supports HEAD requests", async () => {
     server = await startServer((req, res) => {
       res.setHeader("x-method", req.method ?? "");
