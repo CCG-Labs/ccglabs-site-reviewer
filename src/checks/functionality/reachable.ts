@@ -28,6 +28,22 @@ export const reachableCheck: Check = {
         ],
       };
     }
+    if (result.status >= 300 && result.status < 400) {
+      const location = result.headers.location;
+      const target = location !== undefined ? ` to ${location}` : "";
+      return {
+        score: 0,
+        findings: [
+          {
+            severity: "error",
+            url: ctx.baseUrl,
+            message: `Base URL redirects off-origin${target} and was not followed.`,
+            recommendation:
+              "Point site-review at the canonical URL (following the redirect) instead of the redirecting one.",
+          },
+        ],
+      };
+    }
     return { score: 100, findings: [] };
   },
 };

@@ -11,6 +11,31 @@ export class SiteUnreachableError extends Error {}
 
 export class BodySizeCapError extends Error {}
 
+export class TooManyRedirectsError extends Error {}
+
+/**
+ * Decides whether a redirect hop should be followed automatically.
+ *
+ * Same-origin hops are always followed. A same-host http -> https upgrade on
+ * default ports (the standard HSTS-style upgrade redirect) is also followed,
+ * since it is not a meaningful origin change from a security perspective.
+ * https -> http downgrades and any hostname change are never followed.
+ */
+export function isFollowableRedirect(fromUrl: string, toUrl: string): boolean {
+  const from = new URL(fromUrl);
+  const to = new URL(toUrl);
+  if (from.origin === to.origin) return true;
+  const isDefaultHttpPort = from.port === "" || from.port === "80";
+  const isDefaultHttpsPort = to.port === "" || to.port === "443";
+  return (
+    from.protocol === "http:" &&
+    to.protocol === "https:" &&
+    from.hostname === to.hostname &&
+    isDefaultHttpPort &&
+    isDefaultHttpsPort
+  );
+}
+
 async function readBodyCapped(response: Response, maxBytes: number): Promise<string> {
   if (!response.body) return "";
   const reader = response.body.getReader();
@@ -67,7 +92,7 @@ export function createFetcher(options: FetcherOptions = {}): RateLimitedFetch {
     let redirected = false;
     for (let hop = 0; ; hop += 1) {
       if (hop > MAX_REDIRECTS) {
-        throw new Error(`Too many redirects: ${url}`);
+        throw new TooManyRedirectsError(`Too many redirects: ${url}`);
       }
       const response = await fetch(currentUrl, {
         method,
@@ -79,7 +104,8 @@ export function createFetcher(options: FetcherOptions = {}): RateLimitedFetch {
         const location = response.headers.get("location");
         if (location !== null) {
           const target = new URL(location, currentUrl);
-          if (target.origin === new URL(currentUrl).origin) {
+          if (isFollowableRedirect(currentUrl, target.href)) {
+            await response.body?.cancel();
             currentUrl = target.href;
             redirected = true;
             continue;
@@ -106,8 +132,11 @@ export function createFetcher(options: FetcherOptions = {}): RateLimitedFetch {
       try {
         return await attempt(url, method);
       } catch (error) {
-        // Size-cap violations are deliberate rejections, not transient network errors — never retry them.
-        if (error instanceof BodySizeCapError) throw error;
+        // Size-cap violations and redirect-loop failures are deliberate rejections,
+        // not transient network errors — never retry them.
+        if (error instanceof BodySizeCapError || error instanceof TooManyRedirectsError) {
+          throw error;
+        }
         return await attempt(url, method);
       }
     } finally {

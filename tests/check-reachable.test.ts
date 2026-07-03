@@ -52,4 +52,17 @@ describe("functionality.reachable", () => {
     expect(outcome.findings[0]?.message).toContain("503");
     expect(outcome.findings[0]?.recommendation).not.toBe("");
   });
+
+  it("fails with score 0 when the base URL redirects off-origin unfollowed", async () => {
+    server = await startServer((_req, res) => {
+      res.writeHead(302, { Location: "https://elsewhere.invalid/" });
+      res.end();
+    });
+    const outcome = await reachableCheck.run(contextFor(server.url));
+    expect(outcome.score).toBe(0);
+    expect(outcome.findings[0]?.severity).toBe("error");
+    expect(outcome.findings[0]?.message).toContain("redirect");
+    expect(outcome.findings[0]?.message).toContain("https://elsewhere.invalid/");
+    expect(outcome.findings[0]?.recommendation).not.toBe("");
+  });
 });

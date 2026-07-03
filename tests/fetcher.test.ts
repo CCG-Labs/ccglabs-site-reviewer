@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createFetcher } from "../src/fetch/fetcher.js";
+import {
+  createFetcher,
+  isFollowableRedirect,
+  TooManyRedirectsError,
+} from "../src/fetch/fetcher.js";
 import { startServer, type TestServer } from "./helpers/server.js";
 
 let server: TestServer | undefined;
@@ -153,5 +157,43 @@ describe("createFetcher", () => {
       res.end();
     });
     await expect(createFetcher()(server.url)).rejects.toThrow(/Too many redirects/);
+  });
+
+  it("does not retry after too many redirects", async () => {
+    let calls = 0;
+    server = await startServer((_req, res) => {
+      calls += 1;
+      res.writeHead(302, { Location: "/" });
+      res.end();
+    });
+    await expect(createFetcher()(server.url)).rejects.toThrow(TooManyRedirectsError);
+    // MAX_REDIRECTS (5) + 1 initial request = 6 hops for a single attempt; retrying would double it.
+    expect(calls).toBe(6);
+  });
+});
+
+describe("isFollowableRedirect", () => {
+  it("follows http to https upgrade on the same host", () => {
+    expect(isFollowableRedirect("http://example.com/", "https://example.com/")).toBe(true);
+  });
+
+  it("does not follow http to https upgrade on a different host", () => {
+    expect(isFollowableRedirect("http://example.com/", "https://elsewhere.invalid/")).toBe(false);
+  });
+
+  it("does not follow https to http downgrade on the same host", () => {
+    expect(isFollowableRedirect("https://example.com/", "http://example.com/")).toBe(false);
+  });
+
+  it("follows same-origin path redirects", () => {
+    expect(isFollowableRedirect("http://example.com/a", "http://example.com/b")).toBe(true);
+  });
+
+  it("does not follow cross-origin redirects", () => {
+    expect(isFollowableRedirect("http://example.com/", "http://elsewhere.invalid/")).toBe(false);
+  });
+
+  it("does not follow http to https upgrade with explicit non-default ports", () => {
+    expect(isFollowableRedirect("http://h:8080/", "https://h/")).toBe(false);
   });
 });

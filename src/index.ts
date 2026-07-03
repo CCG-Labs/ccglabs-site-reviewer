@@ -3,8 +3,10 @@ export { defineConfig } from "./config/define.js";
 export { builtinChecks } from "./engine/registry.js";
 export {
   createFetcher,
+  isFollowableRedirect,
   SiteUnreachableError,
   BodySizeCapError,
+  TooManyRedirectsError,
   type FetcherOptions,
 } from "./fetch/fetcher.js";
 export {
