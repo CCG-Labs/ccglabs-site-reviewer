@@ -2,7 +2,12 @@ import packageJson from "../../package.json" with { type: "json" };
 import { resolveConfig } from "../config/resolve.js";
 import { createFetcher, SiteUnreachableError } from "../fetch/fetcher.js";
 import { MANUAL_CHECKLIST } from "../report/manual-checklist.js";
-import { REPORT_VERSION, type CategoryReport, type ReviewReport } from "../report/schema.js";
+import {
+  REPORT_VERSION,
+  reviewReportSchema,
+  type CategoryReport,
+  type ReviewReport,
+} from "../report/schema.js";
 import type { CategoryId, Environment, SiteReviewConfig } from "../types.js";
 import { applyOverride, partitionChecks, runChecks, type ExecutedCheck } from "./runner.js";
 import { builtinChecks } from "./registry.js";
@@ -71,7 +76,7 @@ export async function runReview(options: RunReviewOptions): Promise<ReviewReport
   const overall = overallScore(categories.map((c) => c.score));
   const anyBlockingFailed = executed.some((r) => r.check.blocking && r.status === "fail");
 
-  return {
+  const report: ReviewReport = {
     reportVersion: REPORT_VERSION,
     tool: { name: packageJson.name, version: packageJson.version },
     target: options.url,
@@ -88,4 +93,6 @@ export async function runReview(options: RunReviewOptions): Promise<ReviewReport
     skipped,
     manualChecklist: MANUAL_CHECKLIST,
   };
+
+  return reviewReportSchema.parse(report);
 }

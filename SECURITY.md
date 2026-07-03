@@ -10,5 +10,6 @@ public issues for security reports.
 
 This tool fetches and parses untrusted remote content. It never
 evaluates fetched content, never spawns subprocesses, caps response
-sizes and page counts, restricts crawling to the target origin, and
-redacts configured auth headers from all output.
+sizes and per-request timeouts, follows redirects only within the
+same origin as the requested URL, and redacts configured auth
+headers from all output.

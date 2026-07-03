@@ -45,6 +45,24 @@ export async function runCli(argv: string[], io: CliIo): Promise<number> {
       },
     })
     .action(async (url: string, opts: CliOptions) => {
+      const validEnvironments: Environment[] = ["local", "ci", "production"];
+      if (opts.env !== undefined && !validEnvironments.includes(opts.env as Environment)) {
+        throw new Error(`Invalid value for --env: "${opts.env}" (expected local|ci|production)`);
+      }
+      const parsePositiveNumber = (flag: string, value: string): number => {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          throw new Error(`Invalid value for ${flag}: "${value}" (expected a number >= 0)`);
+        }
+        return parsed;
+      };
+      const maxPages =
+        opts.maxPages !== undefined ? parsePositiveNumber("--max-pages", opts.maxPages) : undefined;
+      const failThreshold =
+        opts.failThreshold !== undefined
+          ? parsePositiveNumber("--fail-threshold", opts.failThreshold)
+          : undefined;
+
       const checks: Record<string, boolean | CheckOverride> = {};
       for (const id of opts.skip?.split(",") ?? []) checks[id] = false;
       if (opts.checks !== undefined) {
@@ -56,8 +74,8 @@ export async function runCli(argv: string[], io: CliIo): Promise<number> {
       const cliConfig: SiteReviewConfig = {
         checks,
         ...(opts.env !== undefined && { environment: opts.env as Environment }),
-        ...(opts.maxPages !== undefined && { maxPages: Number(opts.maxPages) }),
-        ...(opts.failThreshold !== undefined && { failThreshold: Number(opts.failThreshold) }),
+        ...(maxPages !== undefined && { maxPages }),
+        ...(failThreshold !== undefined && { failThreshold }),
       };
       const configFile = await loadConfigFile(process.cwd(), opts.config);
       const report = await runReview({ url, configFile, cliConfig });

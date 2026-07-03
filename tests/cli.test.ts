@@ -121,4 +121,35 @@ describe("runCli", () => {
     expect(code).toBe(0);
     expect(io.stdout()).toContain("Usage:");
   });
+
+  it("exits 2 on an invalid --env value", async () => {
+    const io = captureIo();
+    const code = await runCli(["http://example.test", "--env", "bogus", "--format", "json"], io);
+    expect(code).toBe(2);
+    const error = (JSON.parse(io.stderr()) as { error: string }).error;
+    expect(error).toContain("--env");
+  });
+
+  it("accepts valid --max-pages and --fail-threshold values", async () => {
+    server = await startServer((_req, res) => {
+      res.end("ok");
+    });
+    const io = captureIo();
+    const code = await runCli(
+      [server.url, "--max-pages", "10", "--fail-threshold", "0", "--format", "json"],
+      io,
+    );
+    expect(code).toBe(0);
+    expect(() => reviewReportSchema.parse(JSON.parse(io.stdout()))).not.toThrow();
+  });
+
+  it("exits 2 on a non-numeric --fail-threshold", async () => {
+    server = await startServer((_req, res) => {
+      res.end("ok");
+    });
+    const io = captureIo();
+    const code = await runCli([server.url, "--fail-threshold", "abc", "--format", "json"], io);
+    expect(code).toBe(2);
+    expect(io.stdout()).toBe("");
+  });
 });
