@@ -27,9 +27,11 @@
 ### Task 1: Project scaffold and toolchain
 
 **Files:**
+
 - Create: `package.json`, `tsconfig.json`, `tsup.config.ts`, `vitest.config.ts`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `.gitignore`, `src/index.ts`, `tests/index.test.ts`
 
 **Interfaces:**
+
 - Produces: `npm run verify` (typecheck + lint + format check + tests w/ coverage + build) — every later task ends by keeping this green.
 
 - [ ] **Step 1: Create branch**
@@ -151,9 +153,17 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "error",
       "no-eval": "error",
       "no-new-func": "error",
-      "no-restricted-imports": ["error", { paths: [{ name: "child_process", message: "No subprocesses in runtime code." }, { name: "node:child_process", message: "No subprocesses in runtime code." }] }],
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "child_process", message: "No subprocesses in runtime code." },
+            { name: "node:child_process", message: "No subprocesses in runtime code." },
+          ],
+        },
+      ],
       "security/detect-non-literal-fs-filename": "off",
-      "security/detect-object-injection": "off"
+      "security/detect-object-injection": "off",
     },
   },
   { files: ["**/*.js"], extends: [tseslint.configs.disableTypeChecked] },
@@ -163,11 +173,13 @@ export default tseslint.config(
 - [ ] **Step 8: Write `.prettierrc.json`, `.prettierignore`, `.gitignore`**
 
 `.prettierrc.json`:
+
 ```json
 { "printWidth": 100 }
 ```
 
 `.prettierignore`:
+
 ```
 dist/
 coverage/
@@ -175,6 +187,7 @@ package-lock.json
 ```
 
 `.gitignore`:
+
 ```
 node_modules/
 dist/
@@ -218,9 +231,11 @@ git commit -m "chore: scaffold TypeScript package with strict toolchain and cove
 ### Task 2: CI workflows and supply-chain files
 
 **Files:**
+
 - Create: `.github/workflows/ci.yml`, `.github/workflows/codeql.yml`, `.github/dependabot.yml`, `SECURITY.md`, `README.md`
 
 **Interfaces:**
+
 - Produces: merge-blocking CI (`verify`, `audit`, `gitleaks`, CodeQL) required on every subsequent PR.
 
 - [ ] **Step 1: Write `.github/workflows/ci.yml`**
@@ -396,10 +411,12 @@ Wait for merge before starting PR 2 tasks.
 ### Task 3: Shared types and versioned report schema
 
 **Files:**
+
 - Create: `src/types.ts`, `src/report/schema.ts`
 - Test: `tests/report-schema.test.ts`
 
 **Interfaces:**
+
 - Produces (consumed by every later task):
   - `src/types.ts`: `Environment`, `CategoryId`, `Severity`, `Finding`, `CheckOutcome`, `Logger`, `FetchResult`, `RateLimitedFetch`, `CheckContext`, `Check`, `CheckOverride`, `SiteReviewConfig`, `ResolvedConfig`
   - `src/report/schema.ts`: `REPORT_VERSION`, `reviewReportSchema`, types `ReviewReport`, `CheckReport`, `CategoryReport`
@@ -475,13 +492,7 @@ Expected: FAIL — cannot resolve `../src/report/schema.js`.
 export type Environment = "local" | "ci" | "production";
 
 export type CategoryId =
-  | "functionality"
-  | "performance"
-  | "accessibility"
-  | "seo"
-  | "security"
-  | "content"
-  | "operations";
+  "functionality" | "performance" | "accessibility" | "seo" | "security" | "content" | "operations";
 
 export type Severity = "error" | "warning" | "info";
 
@@ -645,10 +656,12 @@ git commit -m "feat: add core check/config types and versioned report schema"
 ### Task 4: Config resolution
 
 **Files:**
+
 - Create: `src/config/resolve.ts`
 - Test: `tests/config-resolve.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SiteReviewConfig`, `ResolvedConfig`, `CheckOverride`, `Environment` from `src/types.ts`
 - Produces: `resolveConfig(layers: { file?: SiteReviewConfig; api?: SiteReviewConfig; cli?: SiteReviewConfig }): ResolvedConfig` and `DEFAULTS`
 
@@ -799,10 +812,12 @@ git commit -m "feat: add layered config resolution with per-environment override
 ### Task 5: Config file loader and defineConfig
 
 **Files:**
+
 - Create: `src/config/load.ts`, `src/config/define.ts`
 - Test: `tests/config-load.test.ts`
 
 **Interfaces:**
+
 - Produces: `loadConfigFile(cwd: string, explicitPath?: string): Promise<SiteReviewConfig | undefined>`, `defineConfig(config: SiteReviewConfig): SiteReviewConfig`
 
 - [ ] **Step 1: Write the failing test** — `tests/config-load.test.ts`
@@ -856,6 +871,7 @@ Run: `npx vitest run tests/config-load.test.ts` — Expected: FAIL (modules not 
 - [ ] **Step 3: Write `src/config/define.ts` and `src/config/load.ts`**
 
 `src/config/define.ts`:
+
 ```ts
 import type { SiteReviewConfig } from "../types.js";
 
@@ -865,6 +881,7 @@ export function defineConfig(config: SiteReviewConfig): SiteReviewConfig {
 ```
 
 `src/config/load.ts`:
+
 ```ts
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -913,10 +930,12 @@ git commit -m "feat: add config file discovery/loading (ts/js/json) and defineCo
 ### Task 6: Capped, rate-limited fetch helper
 
 **Files:**
+
 - Create: `src/fetch/fetcher.ts`
 - Test: `tests/fetcher.test.ts`, `tests/helpers/server.ts`
 
 **Interfaces:**
+
 - Consumes: `FetchResult`, `RateLimitedFetch` from `src/types.ts`
 - Produces: `createFetcher(options?: FetcherOptions): RateLimitedFetch`, `class SiteUnreachableError extends Error`, `interface FetcherOptions { requestHeaders?: Record<string,string>; timeoutMs?: number; maxBodyBytes?: number; maxConcurrent?: number }`
 - Also produces the shared test helper `startServer(handler): Promise<TestServer>` used by every later task's tests.
@@ -1147,10 +1166,12 @@ git commit -m "feat: add capped, concurrency-limited fetch helper with single re
 ### Task 7: Scoring
 
 **Files:**
+
 - Create: `src/engine/score.ts`
 - Test: `tests/score.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Finding` from `src/types.ts`
 - Produces:
   - `statusFromFindings(findings: Finding[]): "pass" | "warn" | "fail"`
@@ -1284,10 +1305,12 @@ git commit -m "feat: add finding-to-status derivation and weighted category/over
 ### Task 8: Runner and environment partitioning
 
 **Files:**
+
 - Create: `src/engine/runner.ts`
 - Test: `tests/runner.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Check`, `CheckContext`, `CheckOverride`, `Environment`, `Finding`, `ResolvedConfig`, `RateLimitedFetch` from `src/types.ts`; `statusFromFindings` from `src/engine/score.ts`
 - Produces:
   - `interface ExecutedCheck { check: Check; status: "pass" | "warn" | "fail" | "error"; score: number; findings: Finding[]; debug: Array<{ message: string; data?: unknown }> }`
@@ -1533,10 +1556,12 @@ git commit -m "feat: add check runner with environment partitioning, overrides, 
 ### Task 9: First built-in check — functionality.reachable
 
 **Files:**
+
 - Create: `src/checks/functionality/reachable.ts`, `src/engine/registry.ts`
 - Test: `tests/check-reachable.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Check`, `CheckContext` from `src/types.ts`; `createFetcher` (in tests)
 - Produces: `reachableCheck: Check` (id `functionality.reachable`); `builtinChecks: Check[]` from `src/engine/registry.ts`
 
@@ -1665,10 +1690,12 @@ git commit -m "feat: add functionality.reachable built-in check and check regist
 ### Task 10: runReview engine assembly
 
 **Files:**
+
 - Create: `src/engine/run-review.ts`, `src/report/manual-checklist.ts`
 - Test: `tests/run-review.test.ts`
 
 **Interfaces:**
+
 - Consumes: everything from Tasks 3–9; `package.json` name/version via JSON import
 - Produces:
   - `interface RunReviewOptions { url: string; environment?: Environment; config?: SiteReviewConfig; configFile?: SiteReviewConfig; cliConfig?: SiteReviewConfig }`
@@ -1893,10 +1920,12 @@ git commit -m "feat: assemble runReview engine producing schema-valid graded rep
 ### Task 11: Reporters
 
 **Files:**
+
 - Create: `src/reporters/json.ts`, `src/reporters/console.ts`
 - Test: `tests/reporters.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ReviewReport` from `src/report/schema.ts`
 - Produces: `renderJson(report: ReviewReport): string`, `renderConsole(report: ReviewReport): string`
 
@@ -1970,6 +1999,7 @@ Run: `npx vitest run tests/reporters.test.ts` — Expected: FAIL (modules not fo
 - [ ] **Step 3: Write the reporters**
 
 `src/reporters/json.ts`:
+
 ```ts
 import type { ReviewReport } from "../report/schema.js";
 
@@ -1979,6 +2009,7 @@ export function renderJson(report: ReviewReport): string {
 ```
 
 `src/reporters/console.ts`:
+
 ```ts
 import type { ReviewReport } from "../report/schema.js";
 
@@ -2027,11 +2058,13 @@ git commit -m "feat: add JSON and console reporters rendered from the canonical 
 ### Task 12: CLI
 
 **Files:**
+
 - Create: `src/cli/main.ts`, `src/cli.ts`
 - Modify: `tsup.config.ts` (restore `entry: ["src/index.ts", "src/cli.ts"]`)
 - Test: `tests/cli.test.ts`
 
 **Interfaces:**
+
 - Consumes: `runReview`, `builtinChecks`, `loadConfigFile`, `renderJson`, `renderConsole`, `SiteUnreachableError`
 - Produces: `runCli(argv: string[], io: CliIo): Promise<number>` where `interface CliIo { out(text: string): void; err(text: string): void }`; bin entry `src/cli.ts`
 
@@ -2215,6 +2248,7 @@ export async function runCli(argv: string[], io: CliIo): Promise<number> {
 - [ ] **Step 4: Write `src/cli.ts` and restore the tsup entry**
 
 `src/cli.ts`:
+
 ```ts
 #!/usr/bin/env node
 import { runCli } from "./cli/main.js";
@@ -2241,10 +2275,12 @@ git commit -m "feat: add site-review CLI with env/skip/format flags and 0/1/2 ex
 ### Task 13: Public API surface, docs, and PR
 
 **Files:**
+
 - Modify: `src/index.ts`, `README.md`
 - Test: `tests/public-api.test.ts`
 
 **Interfaces:**
+
 - Produces the published API: `runReview`, `defineConfig`, `builtinChecks`, `reviewReportSchema`, `REPORT_VERSION`, `SiteUnreachableError`, and the public types.
 
 - [ ] **Step 1: Write the failing test** — `tests/public-api.test.ts`
@@ -2321,7 +2357,8 @@ const report = await runReview({ url: "https://example.com", environment: "ci" }
 if (report.grade === "fail") {
   for (const category of report.categories)
     for (const check of category.checks)
-      for (const finding of check.findings) console.log(finding.message, "→", finding.recommendation);
+      for (const finding of check.findings)
+        console.log(finding.message, "→", finding.recommendation);
 }
 ```
 
@@ -2348,10 +2385,12 @@ Run: `npm run format && npm run verify`
 Expected: typecheck, lint, format, all tests (with ≥90% coverage), and build green. If coverage falls short, add tests for the uncovered branch — do not lower thresholds.
 
 Then a live smoke test:
+
 ```bash
 npm run build
 node dist/cli.js https://example.com --env production --format console
 ```
+
 Expected: console summary with `Grade: PASS` (or a graded report), exit code 0/1.
 
 - [ ] **Step 5: Commit and open PR 2**
