@@ -44,6 +44,26 @@ you whether coverage was complete; a capped crawl also surfaces as a
 the run; worst case is roughly `maxPages` × 5 MB (the per-response body cap)
 for HTML-heavy sites — lower `maxPages` for constrained environments.
 
+## Checks
+
+| id                             | what it verifies                                                                                                                        |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `functionality.reachable`      | the base URL responds successfully (no 4xx/5xx, no unfollowed off-origin redirect)                                                      |
+| `functionality.crawl-coverage` | the crawl covered the site without hitting `maxPages`                                                                                   |
+| `seo.meta-tags`                | one good title/description/canonical/h1/lang per page; titles unique site-wide; no stray `noindex` (error in production, warning in ci) |
+
+Per-check options go under `checks` in the config file:
+
+```ts
+export default defineConfig({
+  checks: {
+    "seo.meta-tags": {
+      options: { noindexAllow: ["https://example.com/internal-tool"] },
+    },
+  },
+});
+```
+
 ## Configuration
 
 `site-review.config.ts` (or `.js` / `.json`) in the working directory:

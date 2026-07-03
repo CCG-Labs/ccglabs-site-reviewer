@@ -81,4 +81,23 @@ describe("runReview", () => {
     });
     expect(report.grade).toBe("pass");
   });
+
+  it("surfaces seo.meta-tags findings from crawled pages", async () => {
+    server = await startServer((req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      if (req.url === "/") {
+        res.end(
+          '<html lang="en"><head><title>Home</title><meta name="description" content="A perfectly reasonable description that sits comfortably within the limits."><link rel="canonical" href="/"></head><body><h1>Hi</h1><a href="/bare">bare</a></body></html>',
+        );
+      } else {
+        res.end("<html><head></head><body>no meta at all</body></html>");
+      }
+    });
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const seo = report.categories.find((category) => category.id === "seo");
+    const check = seo?.checks.find((entry) => entry.id === "seo.meta-tags");
+    expect(check?.status).toBe("fail");
+    expect(check?.findings.some((finding) => finding.url?.endsWith("/bare") ?? false)).toBe(true);
+    expect(report.grade).toBe("fail"); // blocking check failed
+  });
 });
