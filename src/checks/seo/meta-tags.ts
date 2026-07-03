@@ -12,7 +12,11 @@ function noindexAllowlist(ctx: CheckContext): Set<string> {
 }
 
 function headerNoindex(page: CrawledPage): boolean {
-  return (page.headers["x-robots-tag"] ?? "").toLowerCase().includes("noindex");
+  const directives = (page.headers["x-robots-tag"] ?? "")
+    .toLowerCase()
+    .split(",")
+    .map((directive) => directive.trim());
+  return directives.includes("noindex") || directives.includes("none");
 }
 
 function pageFindings(page: CrawledPage, meta: ReturnType<typeof extractPageMeta>): Finding[] {
@@ -21,8 +25,12 @@ function pageFindings(page: CrawledPage, meta: ReturnType<typeof extractPageMeta
     findings.push({ severity, message, recommendation, url: page.url });
   };
 
-  if (meta.titles.length === 0) {
-    add("error", "Page has no <title>.", "Add a unique, descriptive title under 60 characters.");
+  if (meta.titles.length === 0 || (meta.titles[0] ?? "").trim() === "") {
+    add(
+      "error",
+      "Page has no <title> (or it is empty).",
+      "Add a unique, descriptive title under 60 characters.",
+    );
   } else if (meta.titles.length > 1) {
     add(
       "error",
@@ -37,10 +45,10 @@ function pageFindings(page: CrawledPage, meta: ReturnType<typeof extractPageMeta
     );
   }
 
-  if (meta.descriptions.length === 0) {
+  if (meta.descriptions.length === 0 || (meta.descriptions[0] ?? "").trim() === "") {
     add(
       "error",
-      "Page has no meta description.",
+      "Page has no meta description (or it is empty).",
       "Add a unique meta description of 50–160 characters.",
     );
   } else {

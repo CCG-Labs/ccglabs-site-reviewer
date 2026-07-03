@@ -167,6 +167,48 @@ describe("seo.meta-tags", () => {
     expect(allowed.findings.some((f) => f.message.includes("noindex"))).toBe(false);
   });
 
+  it("treats blank titles and descriptions as missing", async () => {
+    const outcome = await metaTagsCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/",
+          body: `<html lang="en"><head>
+            <title>   </title>
+            <meta name="description" content="">
+            <link rel="canonical" href="https://example.com/">
+          </head><body><h1>Home</h1></body></html>`,
+        },
+      ]),
+    );
+    const errors = findingsBySeverity(outcome.findings, "error");
+    expect(errors).toHaveLength(2);
+    expect(errors.some((finding) => finding.message.toLowerCase().includes("title"))).toBe(true);
+    expect(errors.some((finding) => finding.message.toLowerCase().includes("description"))).toBe(
+      true,
+    );
+    expect(outcome.score).toBe(0);
+  });
+
+  it("treats X-Robots-Tag: none as noindex, and index/follow as clean", async () => {
+    const nonePage = {
+      url: "https://example.com/none",
+      body: goodPage("None"),
+      headers: { "content-type": "text/html", "x-robots-tag": "none" },
+    };
+    const flagged = await metaTagsCheck.run(contextFor([nonePage], "production"));
+    expect(
+      findingsBySeverity(flagged.findings, "error").some((f) => f.message.includes("noindex")),
+    ).toBe(true);
+
+    const okPage = {
+      url: "https://example.com/ok",
+      body: goodPage("Ok"),
+      headers: { "content-type": "text/html", "x-robots-tag": "index, follow" },
+    };
+    const clean = await metaTagsCheck.run(contextFor([okPage], "production"));
+    expect(clean.findings.some((f) => f.message.includes("noindex"))).toBe(false);
+  });
+
   it("only evaluates 2xx HTML pages and returns 100 for an empty store", async () => {
     const outcome = await metaTagsCheck.run(
       contextFor([
