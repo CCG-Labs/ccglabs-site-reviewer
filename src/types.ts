@@ -45,6 +45,7 @@ export interface CrawledPage {
   status: number;
   ok: boolean;
   headers: Record<string, string>;
+  /** HTML body text; empty for non-HTML responses — checks needing raw assets should fetch them directly. */
   body: string;
   redirected: boolean;
   durationMs: number;

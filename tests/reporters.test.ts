@@ -57,4 +57,13 @@ describe("renderConsole", () => {
     expect(text).toContain("security.tls");
     expect(text).toContain("5/5 pages scanned");
   });
+
+  it("flags capped crawls with a partial-coverage marker", () => {
+    const text = renderConsole({
+      ...report,
+      crawl: { pagesDiscovered: 10, pagesScanned: 5, capped: true },
+    });
+    expect(text).toContain("5/10 pages scanned");
+    expect(text).toContain("(CAPPED — partial coverage)");
+  });
 });

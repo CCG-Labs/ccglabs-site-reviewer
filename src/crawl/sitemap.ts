@@ -31,12 +31,14 @@ export async function fetchSitemapUrls(
   fetchFn: RateLimitedFetch,
   origin: string,
   limit = 500,
+  allowedOrigins?: ReadonlySet<string>,
 ): Promise<string[]> {
   const collected: string[] = [];
+  const allowed = allowedOrigins ?? new Set([new URL(origin).origin]);
   const sameOrigin = (raw: string): string | undefined => {
     const normalized = normalizePageUrl(raw);
     if (normalized === undefined) return undefined;
-    return new URL(normalized).origin === new URL(origin).origin ? normalized : undefined;
+    return allowed.has(new URL(normalized).origin) ? normalized : undefined;
   };
 
   let root: ParsedSitemap;

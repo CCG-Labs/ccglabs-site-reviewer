@@ -40,7 +40,9 @@ URL and `sitemap.xml` — up to `maxPages` (default 200, `--max-pages` on the
 CLI). Checks read the shared crawl results instead of re-fetching pages. The
 report's `crawl` block (`pagesDiscovered` / `pagesScanned` / `capped`) tells
 you whether coverage was complete; a capped crawl also surfaces as a
-`functionality.crawl-coverage` warning.
+`functionality.crawl-coverage` warning. Crawl results are held in memory for
+the run; worst case is roughly `maxPages` × 5 MB (the per-response body cap)
+for HTML-heavy sites — lower `maxPages` for constrained environments.
 
 ## Configuration
 

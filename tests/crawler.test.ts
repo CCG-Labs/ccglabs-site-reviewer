@@ -89,6 +89,10 @@ describe("crawlSite", () => {
     expect(paths).not.toContain("/also-never");
     expect(store.get(`${server.url}/broken`)?.status).toBe(500);
     expect(store.htmlPages().map((p) => new URL(p.url).pathname)).not.toContain("/data.json");
+    const jsonPage = store.get(`${server.url}/data.json`);
+    expect(jsonPage?.body).toBe("");
+    expect(jsonPage?.status).toBe(200);
+    expect(jsonPage?.headers["content-type"]).toBe("application/json");
   });
 
   it("counts unfetchable pages as discovered but not scanned", async () => {

@@ -69,6 +69,29 @@ describe("fetchSitemapUrls", () => {
     }
   });
 
+  it("returns URLs whose origin is in the allowed set even if it differs from the fetch origin", async () => {
+    server = await startServer((req, res) => {
+      if (req.url === "/sitemap.xml") {
+        res.setHeader("content-type", "application/xml");
+        res.end(`<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/page</loc></url>
+        </urlset>`);
+      } else res.end("ok");
+    });
+    const serverOrigin = new URL(server.url).origin;
+
+    expect(await fetchSitemapUrls(createFetcher(), server.url)).toEqual([]);
+
+    expect(
+      await fetchSitemapUrls(
+        createFetcher(),
+        server.url,
+        500,
+        new Set([serverOrigin, "https://example.com"]),
+      ),
+    ).toEqual(["https://example.com/page"]);
+  });
+
   it("caps the number of returned URLs at the limit", async () => {
     server = await startServer((req, res) => {
       if (req.url === "/sitemap.xml") {

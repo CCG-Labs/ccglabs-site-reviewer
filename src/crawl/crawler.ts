@@ -75,7 +75,8 @@ export async function crawlSite(options: CrawlOptions): Promise<PageStore> {
   };
 
   enqueue(base);
-  for (const url of await fetchSitemapUrls(fetchFn, new URL(base).origin)) enqueue(url);
+  for (const url of await fetchSitemapUrls(fetchFn, new URL(base).origin, maxPages, allowedOrigins))
+    enqueue(url);
 
   const visit = async (url: string): Promise<void> => {
     let result: FetchResult;
@@ -84,18 +85,18 @@ export async function crawlSite(options: CrawlOptions): Promise<PageStore> {
     } catch {
       return; // discovered but not scanned; the fetcher already retried once
     }
+    const isHtml = (result.headers["content-type"] ?? "").includes("text/html");
     store.set({
       url,
       finalUrl: result.url,
       status: result.status,
       ok: result.ok,
       headers: result.headers,
-      body: result.body,
+      body: isHtml ? result.body : "",
       redirected: result.redirected,
       durationMs: result.durationMs,
     });
     stats.pagesScanned += 1;
-    const isHtml = (result.headers["content-type"] ?? "").includes("text/html");
     if (isHtml && result.status < 400) {
       for (const link of extractLinks(result.body, result.url)) enqueue(link);
     }
