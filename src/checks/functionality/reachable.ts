@@ -8,10 +8,11 @@ export const reachableCheck: Check = {
   blocking: true,
   weight: 1,
   async run(ctx) {
-    const result = await ctx.fetch(ctx.baseUrl);
-    ctx.logger.debug("Fetched base URL", {
+    const page = ctx.pages.get(ctx.baseUrl);
+    const result = page ?? (await ctx.fetch(ctx.baseUrl));
+    ctx.logger.debug("Base URL result", {
       status: result.status,
-      finalUrl: result.url,
+      fromCrawl: page !== undefined,
       durationMs: result.durationMs,
     });
     if (result.status >= 400) {

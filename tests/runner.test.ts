@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyOverride, partitionChecks, runChecks } from "../src/engine/runner.js";
 import type { Check, CheckContext, ResolvedConfig } from "../src/types.js";
+import { fixturePageStore } from "./helpers/page-store.js";
 
 const makeCheck = (overrides: Partial<Check>): Check => ({
   id: "test.check",
@@ -26,6 +27,7 @@ const base: Omit<CheckContext, "logger"> = {
   baseUrl: "http://example.test",
   environment: "local",
   config,
+  pages: fixturePageStore(),
   fetch: () => Promise.reject(new Error("no fetch in this test")),
 };
 

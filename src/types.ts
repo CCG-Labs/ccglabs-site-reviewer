@@ -37,10 +37,44 @@ export interface FetchResult {
 
 export type RateLimitedFetch = (url: string, init?: { method?: string }) => Promise<FetchResult>;
 
+export interface CrawledPage {
+  /** normalized URL as requested by the crawler */
+  url: string;
+  /** final URL after redirects */
+  finalUrl: string;
+  status: number;
+  ok: boolean;
+  headers: Record<string, string>;
+  /** HTML body text; empty for non-HTML responses — checks needing raw assets should fetch them directly. */
+  body: string;
+  redirected: boolean;
+  durationMs: number;
+}
+
+export interface CrawlStats {
+  /** unique URLs discovered (queued), whether or not they were fetched */
+  pagesDiscovered: number;
+  /** pages successfully fetched and stored */
+  pagesScanned: number;
+  /** true when maxPages truncated discovery — coverage is partial */
+  capped: boolean;
+}
+
+export interface PageStore {
+  /** look up a page by URL (normalized internally) */
+  get(url: string): CrawledPage | undefined;
+  all(): CrawledPage[];
+  /** pages whose content-type is HTML — what most checks iterate */
+  htmlPages(): CrawledPage[];
+  stats(): CrawlStats;
+}
+
 export interface CheckContext {
   baseUrl: string;
   environment: Environment;
   config: ResolvedConfig;
+  /** crawl results shared by all checks — one fetch per page for the whole run */
+  pages: PageStore;
   fetch: RateLimitedFetch;
   logger: Logger;
 }

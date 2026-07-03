@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { REPORT_VERSION, reviewReportSchema } from "../src/report/schema.js";
 
 const validReport = {
-  reportVersion: 1,
+  reportVersion: 2,
   tool: { name: "@ccglabs/site-reviewer", version: "0.1.0" },
   target: "https://example.com",
   environment: "production",
   startedAt: "2026-07-03T12:00:00.000Z",
   durationMs: 1234,
+  crawl: { pagesDiscovered: 43, pagesScanned: 43, capped: false },
   grade: "pass",
   score: 92,
   categories: [
@@ -51,6 +52,12 @@ describe("reviewReportSchema", () => {
   });
 
   it("pins REPORT_VERSION so schema changes force a deliberate bump", () => {
-    expect(REPORT_VERSION).toBe(1);
+    expect(REPORT_VERSION).toBe(2);
+  });
+
+  it("rejects a report missing the crawl block", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to omit it
+    const { crawl: _crawl, ...withoutCrawl } = validReport;
+    expect(() => reviewReportSchema.parse(withoutCrawl)).toThrow();
   });
 });

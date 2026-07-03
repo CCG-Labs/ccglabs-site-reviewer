@@ -46,6 +46,7 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
     "commander": "^15.0.0",
     "jiti": "^2.7.0",
     "zod": "^4.4.3"
