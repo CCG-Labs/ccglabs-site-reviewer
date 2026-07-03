@@ -40,11 +40,13 @@ tests/helpers/page-store.ts fixturePageStore for check tests
 ### Task 1: URL normalization, PageStore contract types, fixture helper
 
 **Files:**
+
 - Create: `src/crawl/url.ts`, `tests/helpers/page-store.ts`
 - Modify: `src/types.ts` (append new interfaces; do NOT touch `CheckContext` yet — that lands in Task 5)
 - Test: `tests/crawl-url.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces:
   - `normalizePageUrl(raw: string, base?: string): string | undefined` from `src/crawl/url.ts`
@@ -71,9 +73,7 @@ describe("normalizePageUrl", () => {
   });
 
   it("strips fragments but keeps query strings", () => {
-    expect(normalizePageUrl("https://example.com/a?q=1#section")).toBe(
-      "https://example.com/a?q=1",
-    );
+    expect(normalizePageUrl("https://example.com/a?q=1#section")).toBe("https://example.com/a?q=1");
   });
 
   it("rejects non-http(s) schemes", () => {
@@ -209,11 +209,13 @@ git commit -m "feat: add URL normalization and PageStore contract types"
 ### Task 2: Link extraction (adds cheerio)
 
 **Files:**
+
 - Create: `src/crawl/extract-links.ts`
 - Modify: `package.json` (add cheerio)
 - Test: `tests/extract-links.test.ts`
 
 **Interfaces:**
+
 - Consumes: `normalizePageUrl` from `src/crawl/url.ts`
 - Produces: `extractLinks(html: string, pageUrl: string): string[]` — deduped, normalized, http(s)-only anchor hrefs (cross-origin included; the crawler filters origins, PR 5's link check wants externals too).
 
@@ -300,10 +302,12 @@ git commit -m "feat: add anchor link extraction via cheerio"
 ### Task 3: Sitemap seeding
 
 **Files:**
+
 - Create: `src/crawl/sitemap.ts`
 - Test: `tests/sitemap.test.ts`
 
 **Interfaces:**
+
 - Consumes: `RateLimitedFetch` from `src/types.ts`; `normalizePageUrl` from `src/crawl/url.ts`; test helper `startServer` from `tests/helpers/server.ts`
 - Produces: `fetchSitemapUrls(fetchFn: RateLimitedFetch, origin: string, limit?: number): Promise<string[]>` — same-origin page URLs from `<origin>/sitemap.xml`; supports plain `<urlset>` and one level of `<sitemapindex>` (max 10 child sitemaps); returns `[]` on absence, non-200, fetch error, or unparseable XML (sitemap is a seed source, never a failure).
 
@@ -390,7 +394,9 @@ describe("fetchSitemapUrls", () => {
           (_v, i) => `<url><loc>${origin}/p${String(i)}</loc></url>`,
         ).join("");
         res.setHeader("content-type", "application/xml");
-        res.end(`<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}</urlset>`);
+        res.end(
+          `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}</urlset>`,
+        );
       } else res.end("ok");
     });
     expect(await fetchSitemapUrls(createFetcher(), server.url, 5)).toHaveLength(5);
@@ -498,18 +504,21 @@ git commit -m "feat: add sitemap.xml seed-URL fetching with sitemapindex support
 ### Task 4: Crawler and SitePageStore
 
 **Files:**
+
 - Create: `src/crawl/crawler.ts`
 - Test: `tests/crawler.test.ts`
 
 **Interfaces:**
+
 - Consumes: `extractLinks`, `fetchSitemapUrls`, `normalizePageUrl`; types `CrawledPage`, `CrawlStats`, `PageStore`, `RateLimitedFetch`; test helper `startServer`.
 - Produces: `crawlSite(options: CrawlOptions): Promise<PageStore>` with `interface CrawlOptions { baseUrl: string; fetch: RateLimitedFetch; maxPages?: number; concurrency?: number }` (defaults 200 / 5). Task 5 calls this from `runReview`.
 
 Behavior contract:
+
 - Seeds: normalized base URL first, then sitemap URLs.
 - Allowed origins: the base URL's origin, plus its https twin when the base is http (mirrors the fetcher's upgrade-following policy).
 - Links are followed only from stored pages with an HTML content-type and status < 400.
-- `maxPages` caps *discovery*: once the queued-URL set reaches `maxPages`, further URLs are dropped and `capped` becomes true.
+- `maxPages` caps _discovery_: once the queued-URL set reaches `maxPages`, further URLs are dropped and `capped` becomes true.
 - A page whose fetch throws (after the fetcher's single retry) is counted as discovered but not scanned, and is not stored.
 - Throws `Error("Invalid base URL: …")` for an unusable base URL. Individual page failures never throw.
 
@@ -617,7 +626,10 @@ describe("crawlSite", () => {
       }
       siteHandler({ "/": { body: page(["/dies"]) } })(req, res);
     });
-    const store = await crawlSite({ baseUrl: server.url, fetch: createFetcher({ timeoutMs: 500 }) });
+    const store = await crawlSite({
+      baseUrl: server.url,
+      fetch: createFetcher({ timeoutMs: 500 }),
+    });
     const stats = store.stats();
     expect(stats.pagesDiscovered).toBe(2);
     expect(stats.pagesScanned).toBe(1);
@@ -625,9 +637,9 @@ describe("crawlSite", () => {
   });
 
   it("throws for an invalid base URL", async () => {
-    await expect(
-      crawlSite({ baseUrl: "not a url", fetch: createFetcher() }),
-    ).rejects.toThrow("Invalid base URL");
+    await expect(crawlSite({ baseUrl: "not a url", fetch: createFetcher() })).rejects.toThrow(
+      "Invalid base URL",
+    );
   });
 });
 ```
@@ -639,7 +651,13 @@ Run: `npx vitest run tests/crawler.test.ts` — Expected: FAIL (module not found
 - [ ] **Step 3: Write `src/crawl/crawler.ts`**
 
 ```ts
-import type { CrawledPage, CrawlStats, FetchResult, PageStore, RateLimitedFetch } from "../types.js";
+import type {
+  CrawledPage,
+  CrawlStats,
+  FetchResult,
+  PageStore,
+  RateLimitedFetch,
+} from "../types.js";
 import { extractLinks } from "./extract-links.js";
 import { fetchSitemapUrls } from "./sitemap.js";
 import { normalizePageUrl } from "./url.js";
@@ -668,9 +686,7 @@ class SitePageStore implements PageStore {
     return [...this.pages.values()];
   }
   htmlPages(): CrawledPage[] {
-    return this.all().filter((page) =>
-      (page.headers["content-type"] ?? "").includes("text/html"),
-    );
+    return this.all().filter((page) => (page.headers["content-type"] ?? "").includes("text/html"));
   }
   stats(): CrawlStats {
     return { ...this.crawlStats };
@@ -779,10 +795,12 @@ git commit -m "feat: add same-origin BFS crawler with sitemap seeding and page c
 ### Task 5: Wire PageStore into the engine (CheckContext.pages)
 
 **Files:**
+
 - Modify: `src/types.ts` (`CheckContext`), `src/engine/run-review.ts`, `src/checks/functionality/reachable.ts`
 - Test (modify): `tests/runner.test.ts`, `tests/check-reachable.test.ts`, `tests/run-review.test.ts`
 
 **Interfaces:**
+
 - Consumes: `crawlSite` (Task 4), `fixturePageStore` (Task 1).
 - Produces: `CheckContext.pages: PageStore` — every check (and Task 6's crawl-coverage) reads crawl results from here. Report schema is untouched in this task (that's Task 7).
 
@@ -816,23 +834,23 @@ import { crawlSite } from "../crawl/crawler.js";
 After the HEAD-preflight `try/catch` (which stays — it is the deliberate unreachable-gate), insert:
 
 ```ts
-  const pages = await crawlSite({
-    baseUrl: options.url,
-    fetch: fetchFn,
-    maxPages: config.maxPages,
-  });
+const pages = await crawlSite({
+  baseUrl: options.url,
+  fetch: fetchFn,
+  maxPages: config.maxPages,
+});
 ```
 
 and extend the `runChecks` base context:
 
 ```ts
-  const executed = await runChecks(toRun, {
-    baseUrl: options.url,
-    environment: config.environment,
-    config,
-    pages,
-    fetch: fetchFn,
-  });
+const executed = await runChecks(toRun, {
+  baseUrl: options.url,
+  environment: config.environment,
+  config,
+  pages,
+  fetch: fetchFn,
+});
 ```
 
 - [ ] **Step 4: Make `functionality.reachable` read from the store** — replace the `run` body in `src/checks/functionality/reachable.ts`
@@ -863,15 +881,15 @@ import { fixturePageStore } from "./helpers/page-store.js";
 In `tests/check-reachable.test.ts`, the existing tests fetch live servers — with an empty fixture store the check falls back to `ctx.fetch`, so they still pass unchanged apart from the added `pages` field. Add one new test proving the store is preferred:
 
 ```ts
-  it("prefers the crawled page over a fresh fetch", async () => {
-    const outcome = await reachableCheck.run({
-      ...contextFor("http://unused.invalid"),
-      baseUrl: "http://unused.invalid",
-      fetch: () => Promise.reject(new Error("must not fetch")),
-      pages: fixturePageStore([{ url: "http://unused.invalid/" }]),
-    });
-    expect(outcome).toEqual({ score: 100, findings: [] });
+it("prefers the crawled page over a fresh fetch", async () => {
+  const outcome = await reachableCheck.run({
+    ...contextFor("http://unused.invalid"),
+    baseUrl: "http://unused.invalid",
+    fetch: () => Promise.reject(new Error("must not fetch")),
+    pages: fixturePageStore([{ url: "http://unused.invalid/" }]),
   });
+  expect(outcome).toEqual({ score: 100, findings: [] });
+});
 ```
 
 (Note: `fixturePageStore` normalizes `http://unused.invalid` → `http://unused.invalid/`, and `PageStore.get` normalizes lookups, so the base URL matches with or without the trailing slash.)
@@ -895,11 +913,13 @@ git commit -m "feat: crawl the site once per run and expose PageStore to all che
 ### Task 6: functionality.crawl-coverage check
 
 **Files:**
+
 - Create: `src/checks/functionality/crawl-coverage.ts`
 - Modify: `src/engine/registry.ts`
 - Test: `tests/check-crawl-coverage.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CheckContext.pages` (Task 5), `fixturePageStore` (Task 1).
 - Produces: `crawlCoverageCheck: Check` (id `functionality.crawl-coverage`, non-blocking, weight 1, all environments), registered in `builtinChecks`.
 
@@ -1018,10 +1038,12 @@ git commit -m "feat: add crawl-coverage check warning on capped crawls"
 ### Task 7: Report v2 — crawl block, console line, README, PR
 
 **Files:**
+
 - Modify: `src/report/schema.ts`, `src/engine/run-review.ts`, `src/reporters/console.ts`, `README.md`
 - Test (modify): `tests/report-schema.test.ts`, `tests/reporters.test.ts`, `tests/run-review.test.ts`
 
 **Interfaces:**
+
 - Consumes: `PageStore.stats()` (Task 4 via Task 5).
 - Produces: `REPORT_VERSION = 2`; `ReviewReport.crawl: { pagesDiscovered: number; pagesScanned: number; capped: boolean }`.
 
@@ -1032,10 +1054,10 @@ git commit -m "feat: add crawl-coverage check warning on capped crawls"
   - add one rejection test:
 
 ```ts
-  it("rejects a report missing the crawl block", () => {
-    const { crawl: _crawl, ...withoutCrawl } = validReport;
-    expect(() => reviewReportSchema.parse(withoutCrawl)).toThrow();
-  });
+it("rejects a report missing the crawl block", () => {
+  const { crawl: _crawl, ...withoutCrawl } = validReport;
+  expect(() => reviewReportSchema.parse(withoutCrawl)).toThrow();
+});
 ```
 
 - [ ] **Step 2: Run to verify the new expectations fail**
@@ -1069,9 +1091,9 @@ and add to `reviewReportSchema` after `durationMs`:
 - [ ] **Step 5: Console reporter line** — in `src/reporters/console.ts`, after the `Environment:` line push:
 
 ```ts
-  lines.push(
-    `Crawl: ${String(report.crawl.pagesScanned)}/${String(report.crawl.pagesDiscovered)} pages scanned${report.crawl.capped ? " (CAPPED — partial coverage)" : ""}`,
-  );
+lines.push(
+  `Crawl: ${String(report.crawl.pagesScanned)}/${String(report.crawl.pagesDiscovered)} pages scanned${report.crawl.capped ? " (CAPPED — partial coverage)" : ""}`,
+);
 ```
 
 - [ ] **Step 6: Fix remaining test fixtures**
