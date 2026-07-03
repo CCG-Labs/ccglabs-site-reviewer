@@ -4,8 +4,11 @@ export function renderConsole(report: ReviewReport): string {
   const lines: string[] = [
     `Site review: ${report.target}`,
     `Environment: ${report.environment}   Grade: ${report.grade.toUpperCase()}   Score: ${String(report.score)}/100`,
-    "",
   ];
+  lines.push(
+    `Crawl: ${String(report.crawl.pagesScanned)}/${String(report.crawl.pagesDiscovered)} pages scanned${report.crawl.capped ? " (CAPPED — partial coverage)" : ""}`,
+  );
+  lines.push("");
   for (const category of report.categories) {
     lines.push(`${category.id}: ${String(category.score)}/100`);
     for (const check of category.checks) {

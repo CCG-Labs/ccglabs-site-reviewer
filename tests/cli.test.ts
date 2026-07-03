@@ -76,7 +76,7 @@ describe("runCli", () => {
     const io = captureIo();
     expect(await runCli([server.url], io)).toBe(0);
     expect(io.stdout()).toContain("Grade: PASS");
-    expect(io.stdout()).toContain('"reportVersion": 1');
+    expect(io.stdout()).toContain('"reportVersion": 2');
   });
 
   it("exits 2 on unknown options", async () => {

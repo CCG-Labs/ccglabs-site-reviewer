@@ -4,12 +4,13 @@ import { renderJson } from "../src/reporters/json.js";
 import type { ReviewReport } from "../src/report/schema.js";
 
 const report: ReviewReport = {
-  reportVersion: 1,
+  reportVersion: 2,
   tool: { name: "@ccglabs/site-reviewer", version: "0.1.0" },
   target: "https://example.com",
   environment: "ci",
   startedAt: "2026-07-03T12:00:00.000Z",
   durationMs: 900,
+  crawl: { pagesDiscovered: 5, pagesScanned: 5, capped: false },
   grade: "fail",
   score: 61,
   categories: [
@@ -54,5 +55,6 @@ describe("renderConsole", () => {
     expect(text).toContain("Duplicate <title> shared with /team");
     expect(text).toContain("Give each page a unique title");
     expect(text).toContain("security.tls");
+    expect(text).toContain("5/5 pages scanned");
   });
 });

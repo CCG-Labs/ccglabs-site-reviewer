@@ -6,7 +6,7 @@ describe("public API", () => {
     expect(typeof api.runReview).toBe("function");
     expect(typeof api.defineConfig).toBe("function");
     expect(Array.isArray(api.builtinChecks)).toBe(true);
-    expect(api.REPORT_VERSION).toBe(1);
+    expect(api.REPORT_VERSION).toBe(2);
     expect(api.reviewReportSchema).toBeDefined();
     expect(api.SiteUnreachableError).toBeDefined();
     expect(api.BodySizeCapError).toBeDefined();

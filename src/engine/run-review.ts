@@ -91,6 +91,7 @@ export async function runReview(options: RunReviewOptions): Promise<ReviewReport
     environment: config.environment,
     startedAt: startedAt.toISOString(),
     durationMs: Date.now() - startedAt.getTime(),
+    crawl: pages.stats(),
     grade: computeGrade({
       overall,
       failThreshold: config.failThreshold,

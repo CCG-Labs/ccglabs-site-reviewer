@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const REPORT_VERSION = 1;
+export const REPORT_VERSION = 2;
 
 export const findingSchema = z.object({
   severity: z.enum(["error", "warning", "info"]),
@@ -24,6 +24,12 @@ export const checkReportSchema = z.object({
   debug: z.array(debugEntrySchema),
 });
 
+export const crawlStatsSchema = z.object({
+  pagesDiscovered: z.number().int().min(0),
+  pagesScanned: z.number().int().min(0),
+  capped: z.boolean(),
+});
+
 export const categoryReportSchema = z.object({
   id: z.enum([
     "functionality",
@@ -45,6 +51,7 @@ export const reviewReportSchema = z.object({
   environment: z.enum(["local", "ci", "production"]),
   startedAt: z.string(),
   durationMs: z.number(),
+  crawl: crawlStatsSchema,
   grade: z.enum(["pass", "fail"]),
   score: z.number().min(0).max(100),
   categories: z.array(categoryReportSchema),

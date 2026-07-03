@@ -23,6 +23,7 @@ describe("runReview", () => {
     expect(report.environment).toBe("local");
     expect(report.target).toBe(server.url);
     expect(report.manualChecklist.length).toBeGreaterThan(0);
+    expect(report.crawl.pagesScanned).toBeGreaterThanOrEqual(1);
     const category = report.categories.find((c) => c.id === "functionality");
     expect(category?.checks.map((c) => c.id)).toContain("functionality.reachable");
   });

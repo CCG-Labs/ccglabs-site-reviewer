@@ -33,6 +33,15 @@ if (report.grade === "fail") {
 }
 ```
 
+## Crawling
+
+Every run crawls the target site once — same-origin BFS seeded from the base
+URL and `sitemap.xml` — up to `maxPages` (default 200, `--max-pages` on the
+CLI). Checks read the shared crawl results instead of re-fetching pages. The
+report's `crawl` block (`pagesDiscovered` / `pagesScanned` / `capped`) tells
+you whether coverage was complete; a capped crawl also surfaces as a
+`functionality.crawl-coverage` warning.
+
 ## Configuration
 
 `site-review.config.ts` (or `.js` / `.json`) in the working directory:
