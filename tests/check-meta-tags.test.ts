@@ -1,0 +1,157 @@
+import { describe, expect, it } from "vitest";
+import { metaTagsCheck } from "../src/checks/seo/meta-tags.js";
+import { builtinChecks } from "../src/engine/registry.js";
+import type { CheckContext, Environment, ResolvedConfig, Severity } from "../src/types.js";
+import { fixturePageStore } from "./helpers/page-store.js";
+
+const goodPage = (
+  title: string,
+  description = "A perfectly reasonable description that sits comfortably within the limits.",
+) => `
+  <html lang="en"><head>
+    <title>${title}</title>
+    <meta name="description" content="${description}">
+    <link rel="canonical" href="https://example.com/">
+  </head><body><h1>${title}</h1></body></html>`;
+
+const contextFor = (
+  pages: Parameters<typeof fixturePageStore>[0],
+  environment: Environment = "production",
+  checks: ResolvedConfig["checks"] = {},
+): CheckContext => ({
+  baseUrl: "https://example.com",
+  environment,
+  config: {
+    environment,
+    maxPages: 200,
+    failThreshold: 80,
+    requestHeaders: {},
+    checks,
+    customChecks: [],
+  },
+  pages: fixturePageStore(pages),
+  fetch: () => Promise.reject(new Error("no fetch in this test")),
+  logger: { debug: () => undefined },
+});
+
+const findingsBySeverity = <T extends { severity: Severity }>(findings: T[], severity: Severity) =>
+  findings.filter((finding) => finding.severity === severity);
+
+describe("seo.meta-tags", () => {
+  it("is registered as a built-in", () => {
+    expect(builtinChecks.map((check) => check.id)).toContain("seo.meta-tags");
+  });
+
+  it("passes a clean multi-page site with score 100", async () => {
+    const outcome = await metaTagsCheck.run(
+      contextFor([
+        { url: "https://example.com/", body: goodPage("Home") },
+        {
+          url: "https://example.com/about",
+          body: goodPage(
+            "About",
+            "A different but equally reasonable description within the length limits.",
+          ),
+        },
+      ]),
+    );
+    expect(outcome).toEqual({ score: 100, findings: [] });
+  });
+
+  it("flags missing title, description, and lang as errors on the offending page", async () => {
+    const outcome = await metaTagsCheck.run(
+      contextFor([
+        { url: "https://example.com/", body: goodPage("Home") },
+        { url: "https://example.com/bad", body: "<html><head></head><body></body></html>" },
+      ]),
+    );
+    const errors = findingsBySeverity(outcome.findings, "error");
+    expect(errors.length).toBeGreaterThanOrEqual(3);
+    expect(errors.every((finding) => finding.url === "https://example.com/bad")).toBe(true);
+    expect(outcome.score).toBe(50); // 1 of 2 pages clean
+    expect(errors.every((finding) => finding.recommendation !== "")).toBe(true);
+  });
+
+  it("warns on long titles, out-of-range descriptions, missing canonical, and h1 count", async () => {
+    const longTitle = "T".repeat(61);
+    const outcome = await metaTagsCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/",
+          body: `<html lang="en"><head><title>${longTitle}</title><meta name="description" content="short"></head><body></body></html>`,
+        },
+      ]),
+    );
+    const warnings = findingsBySeverity(outcome.findings, "warning");
+    expect(warnings.map((finding) => finding.message.toLowerCase()).join(" ")).toContain("60");
+    expect(warnings.length).toBeGreaterThanOrEqual(4); // title length, description length, canonical, h1
+    expect(outcome.score).toBe(100); // warnings do not reduce the score
+  });
+
+  it("flags duplicate titles as errors and duplicate descriptions as warnings", async () => {
+    const outcome = await metaTagsCheck.run(
+      contextFor([
+        { url: "https://example.com/", body: goodPage("Same Title") },
+        { url: "https://example.com/copy", body: goodPage("Same Title") },
+      ]),
+    );
+    const duplicateTitle = findingsBySeverity(outcome.findings, "error").find((finding) =>
+      finding.message.includes("Same Title"),
+    );
+    expect(duplicateTitle?.url).toBe("https://example.com/copy");
+    expect(duplicateTitle?.message).toContain("https://example.com/");
+    expect(
+      findingsBySeverity(outcome.findings, "warning").some((finding) =>
+        finding.message.toLowerCase().includes("description"),
+      ),
+    ).toBe(true);
+  });
+
+  it("treats noindex as an error in production, a warning in ci, and ignores it locally", async () => {
+    const noindexPage = {
+      url: "https://example.com/",
+      body: `<html lang="en"><head><title>Home</title><meta name="description" content="A perfectly reasonable description that sits comfortably within the limits."><link rel="canonical" href="/"><meta name="robots" content="noindex"></head><body><h1>x</h1></body></html>`,
+    };
+    const production = await metaTagsCheck.run(contextFor([noindexPage], "production"));
+    expect(
+      findingsBySeverity(production.findings, "error").some((f) => f.message.includes("noindex")),
+    ).toBe(true);
+    const ci = await metaTagsCheck.run(contextFor([noindexPage], "ci"));
+    expect(
+      findingsBySeverity(ci.findings, "warning").some((f) => f.message.includes("noindex")),
+    ).toBe(true);
+    expect(findingsBySeverity(ci.findings, "error")).toEqual([]);
+    const local = await metaTagsCheck.run(contextFor([noindexPage], "local"));
+    expect(local.findings.some((f) => f.message.includes("noindex"))).toBe(false);
+  });
+
+  it("detects noindex from the X-Robots-Tag header and honors the noindexAllow option", async () => {
+    const page = {
+      url: "https://example.com/hidden",
+      body: goodPage("Hidden"),
+      headers: { "content-type": "text/html", "x-robots-tag": "noindex, nofollow" },
+    };
+    const flagged = await metaTagsCheck.run(contextFor([page], "production"));
+    expect(flagged.findings.some((f) => f.message.includes("noindex"))).toBe(true);
+    const allowed = await metaTagsCheck.run(
+      contextFor([page], "production", {
+        "seo.meta-tags": { options: { noindexAllow: ["https://example.com/hidden"] } },
+      }),
+    );
+    expect(allowed.findings.some((f) => f.message.includes("noindex"))).toBe(false);
+  });
+
+  it("only evaluates 2xx HTML pages and returns 100 for an empty store", async () => {
+    const outcome = await metaTagsCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/gone",
+          body: "<html><head></head></html>",
+          status: 404,
+          ok: false,
+        },
+      ]),
+    );
+    expect(outcome).toEqual({ score: 100, findings: [] });
+  });
+});
