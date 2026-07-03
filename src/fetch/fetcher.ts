@@ -59,24 +59,44 @@ export function createFetcher(options: FetcherOptions = {}): RateLimitedFetch {
     queue.shift()?.();
   };
 
+  const MAX_REDIRECTS = 5;
+
   const attempt = async (url: string, method: string): Promise<FetchResult> => {
     const started = Date.now();
-    const response = await fetch(url, {
-      method,
-      headers: requestHeaders,
-      redirect: "follow",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const body = await readBodyCapped(response, maxBodyBytes);
-    return {
-      url: response.url,
-      status: response.status,
-      ok: response.ok,
-      headers: Object.fromEntries(response.headers.entries()),
-      body,
-      redirected: response.redirected,
-      durationMs: Date.now() - started,
-    };
+    let currentUrl = url;
+    let redirected = false;
+    for (let hop = 0; ; hop += 1) {
+      if (hop > MAX_REDIRECTS) {
+        throw new Error(`Too many redirects: ${url}`);
+      }
+      const response = await fetch(currentUrl, {
+        method,
+        headers: requestHeaders,
+        redirect: "manual",
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location");
+        if (location !== null) {
+          const target = new URL(location, currentUrl);
+          if (target.origin === new URL(currentUrl).origin) {
+            currentUrl = target.href;
+            redirected = true;
+            continue;
+          }
+        }
+      }
+      const body = await readBodyCapped(response, maxBodyBytes);
+      return {
+        url: currentUrl,
+        status: response.status,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
+        body,
+        redirected,
+        durationMs: Date.now() - started,
+      };
+    }
   };
 
   return async (url, init = {}) => {

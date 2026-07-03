@@ -97,4 +97,61 @@ describe("createFetcher", () => {
     await Promise.all([fetcher(server.url), fetcher(server.url)]);
     expect(maxSeen).toBe(1);
   });
+
+  it("follows same-origin redirects", async () => {
+    server = await startServer((req, res) => {
+      if (req.url === "/target") {
+        res.end("landed");
+        return;
+      }
+      res.writeHead(302, { Location: "/target" });
+      res.end();
+    });
+    const result = await createFetcher()(server.url);
+    expect(result.status).toBe(200);
+    expect(result.body).toBe("landed");
+    expect(result.redirected).toBe(true);
+    expect(result.url).toBe(`${server.url}/target`);
+  });
+
+  it("does not follow cross-origin redirects and does not leak headers", async () => {
+    let serverBHit = false;
+    const serverB = await startServer((_req, res) => {
+      serverBHit = true;
+      res.end("should not be reached");
+    });
+    server = await startServer((_req, res) => {
+      res.writeHead(302, { Location: serverB.url });
+      res.end();
+    });
+    try {
+      const result = await createFetcher({ requestHeaders: { "x-staging-token": "s3cret" } })(
+        server.url,
+      );
+      expect(result.status).toBe(302);
+      expect(serverBHit).toBe(false);
+      expect(JSON.stringify(result)).not.toContain("s3cret");
+    } finally {
+      await serverB.close();
+    }
+  });
+
+  it("returns a 3xx response as-is when it has no Location header", async () => {
+    server = await startServer((_req, res) => {
+      res.writeHead(302);
+      res.end("no location");
+    });
+    const result = await createFetcher()(server.url);
+    expect(result.status).toBe(302);
+    expect(result.redirected).toBe(false);
+    expect(result.body).toBe("no location");
+  });
+
+  it("throws after too many redirects", async () => {
+    server = await startServer((_req, res) => {
+      res.writeHead(302, { Location: "/" });
+      res.end();
+    });
+    await expect(createFetcher()(server.url)).rejects.toThrow(/Too many redirects/);
+  });
 });
