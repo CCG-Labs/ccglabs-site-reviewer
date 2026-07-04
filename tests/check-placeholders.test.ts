@@ -149,6 +149,20 @@ describe("content.placeholders", () => {
     const outcome = await placeholdersCheck.run(contextFor([]));
     expect(outcome).toEqual({ score: 100, findings: [] });
   });
+
+  it("ignores markers inside pre/code blocks since placeholder copy is prose-oriented", async () => {
+    const outcome = await placeholdersCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/",
+          body: html(
+            '<p>Clean documentation prose.</p><pre>{"a":{"b":1}}</pre><code>return undefined; // NaN</code>',
+          ),
+        },
+      ]),
+    );
+    expect(outcome).toEqual({ score: 100, findings: [] });
+  });
 });
 
 describe("extractVisibleText", () => {
@@ -160,7 +174,7 @@ describe("extractVisibleText", () => {
       ok: true,
       headers: { "content-type": "text/html" },
       body: html(
-        "<p>Hello   world.</p><script>ignored()</script><style>.a{}</style><noscript>no js</noscript><template><span>tpl</span></template>",
+        "<p>Hello   world.</p><script>ignored()</script><style>.a{}</style><noscript>no js</noscript><template><span>tpl</span></template><pre>pre text</pre><code>code text</code>",
       ),
       redirected: false,
       durationMs: 1,

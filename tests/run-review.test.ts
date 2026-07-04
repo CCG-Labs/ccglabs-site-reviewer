@@ -245,7 +245,9 @@ describe("runReview", () => {
     expect(placeholders?.findings.some((finding) => finding.message.includes("lorem ipsum"))).toBe(
       true,
     );
-    expect(images?.status).toBe("fail");
+    // content.images softens missing-alt to a warning outside production (mirrors
+    // security.headers' ci-softening precedent) — this run's environment is "ci".
+    expect(images?.status).toBe("warn");
     expect(images?.findings.some((finding) => finding.message.includes("alt"))).toBe(true);
   });
 });

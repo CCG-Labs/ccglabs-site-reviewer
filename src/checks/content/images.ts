@@ -28,6 +28,12 @@ function imageOptions(ctx: CheckContext): ImageOptions {
 const sampleList = (values: string[]): string =>
   `${values.slice(0, SAMPLE).join(", ")}${values.length > SAMPLE ? `, … (${String(values.length)} total)` : ""}`;
 
+const DISPLAY_SRC_MAX = 80;
+
+/** Truncates a displayed image src (e.g. a multi-KB data: URI) so finding messages stay short. */
+const truncateSrc = (src: string): string =>
+  src.length > DISPLAY_SRC_MAX ? `${src.slice(0, DISPLAY_SRC_MAX)}…` : src;
+
 export const imagesCheck: Check = {
   id: "content.images",
   category: "content",
@@ -62,9 +68,10 @@ export const imagesCheck: Check = {
         const src = (img.attr("src") ?? "").trim();
         const display = src === "" ? "(inline image without src)" : src;
         if (options.ignore.some((pattern) => display.includes(pattern))) return;
-        if (img.attr("alt") === undefined) missingAlt.push(display);
+        const shownDisplay = truncateSrc(display);
+        if (img.attr("alt") === undefined) missingAlt.push(shownDisplay);
         if (img.attr("width") === undefined && img.attr("height") === undefined) {
-          missingDimensions.push(display);
+          missingDimensions.push(shownDisplay);
         }
         if (src !== "") {
           const resolved = normalizePageUrl(src, page.finalUrl);
@@ -80,12 +87,14 @@ export const imagesCheck: Check = {
         }
       });
       if (missingAlt.length > 0) {
+        const softened = ctx.environment !== "production";
         record({
-          severity: "error",
+          severity: softened ? "warning" : "error",
           url: page.url,
           message: `${String(missingAlt.length)} image(s) missing an alt attribute: ${sampleList(missingAlt)}`,
           recommendation:
-            'Add alt text describing each image (or alt="" for purely decorative ones) — required for screen readers.',
+            'Add alt text describing each image (or alt="" for purely decorative ones) — required for screen readers.' +
+            (softened ? " (reported as a warning outside production.)" : ""),
         });
       }
       if (missingDimensions.length > 0) {

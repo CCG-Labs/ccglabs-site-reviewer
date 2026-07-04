@@ -45,14 +45,16 @@ function placeholderOptions(ctx: CheckContext): PlaceholderOptions {
 
 /**
  * Visible text of a page: everything a reader sees, excluding script/style/
- * noscript/template content. Operates on a CLONE — the shared pageDom handle
- * is never mutated.
+ * noscript/template content, and excluding pre/code blocks — placeholder
+ * markers are prose-oriented, and code examples legitimately contain tokens
+ * like "undefined", "NaN", or "}}" without being leftover placeholder copy.
+ * Operates on a CLONE — the shared pageDom handle is never mutated.
  */
 export function extractVisibleText($: CheerioAPI): string {
   const body = $("body");
   const root: Cheerio<AnyNode> = body.length > 0 ? body : $.root();
   const clone = root.clone();
-  clone.find("script, style, noscript, template").remove();
+  clone.find("script, style, noscript, template, pre, code").remove();
   return clone.text().replace(/\s+/g, " ").trim();
 }
 

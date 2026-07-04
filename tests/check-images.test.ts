@@ -84,7 +84,7 @@ describe("content.images", () => {
     expect(outcome).toEqual({ score: 100, findings: [] });
   });
 
-  it('errors on an image with no alt attribute, listing its src; alt="" is clean', async () => {
+  it('errors in production on an image with no alt attribute, listing its src; alt="" is clean', async () => {
     const dirty = await imagesCheck.run(
       contextFor(
         [
@@ -94,6 +94,7 @@ describe("content.images", () => {
           },
         ],
         fetchStub({ "https://example.com/a.png": contentLength(1000) }),
+        "production",
       ),
     );
     const errors = dirty.findings.filter((finding) => finding.severity === "error");
@@ -111,9 +112,32 @@ describe("content.images", () => {
           },
         ],
         fetchStub({ "https://example.com/a.png": contentLength(1000) }),
+        "production",
       ),
     );
     expect(clean).toEqual({ score: 100, findings: [] });
+  });
+
+  it("softens a missing-alt finding to a warning outside production, keeping score clean", async () => {
+    const outcome = await imagesCheck.run(
+      contextFor(
+        [
+          {
+            url: "https://example.com/",
+            body: html('<img src="/a.png" width="10" height="10">'),
+          },
+        ],
+        fetchStub({ "https://example.com/a.png": contentLength(1000) }),
+        "ci",
+      ),
+    );
+    const errors = outcome.findings.filter((finding) => finding.severity === "error");
+    const warnings = outcome.findings.filter((finding) => finding.severity === "warning");
+    expect(errors).toHaveLength(0);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.message).toContain("missing an alt attribute");
+    expect(warnings[0]?.recommendation).toContain("(reported as a warning outside production.)");
+    expect(outcome.score).toBe(100);
   });
 
   it("warns (aggregated) on an image missing both width and height; width-only is clean", async () => {
@@ -264,5 +288,26 @@ describe("content.images", () => {
   it("returns a clean result for an empty page store", async () => {
     const outcome = await imagesCheck.run(contextFor([]));
     expect(outcome).toEqual({ score: 100, findings: [] });
+  });
+
+  it("truncates a long data: URI src in finding messages", async () => {
+    const longDataUri = `data:image/png;base64,${"A".repeat(5000)}`;
+    const outcome = await imagesCheck.run(
+      contextFor(
+        [
+          {
+            url: "https://example.com/",
+            body: html(`<img src="${longDataUri}">`),
+          },
+        ],
+        fetchStub({}),
+        "production",
+      ),
+    );
+    const errors = outcome.findings.filter((finding) => finding.severity === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.message.length).toBeLessThan(200);
+    expect(errors[0]?.message).toContain("…");
+    expect(errors[0]?.message).not.toContain(longDataUri);
   });
 });
