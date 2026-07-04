@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
-import { createServer } from "node:https";
-import type { Server } from "node:https";
+import { createServer as createHttpsServer } from "node:https";
+import type { Server as HttpsServer } from "node:https";
+import { createServer as createTcpServer } from "node:net";
+import type { Server as TcpServer, Socket } from "node:net";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   certExpiryFindings,
   findMixedContent,
@@ -112,12 +114,12 @@ describe("security.tls", () => {
     });
 
     describe("against a real local TLS server", () => {
-      let server: Server;
+      let server: HttpsServer;
       let port: number;
       let html = "<html><body>clean</body></html>";
 
       beforeAll(async () => {
-        server = createServer({ cert: CERT, key: KEY }, (_req, res) => {
+        server = createHttpsServer({ cert: CERT, key: KEY }, (_req, res) => {
           res.writeHead(200, { "content-type": "text/html" });
           res.end(html);
         });
@@ -182,6 +184,85 @@ describe("security.tls", () => {
         expect(finding).toBeDefined();
         expect(finding?.severity).toBe("error");
       });
+
+      it("caps the mixed-content sample at 3 URLs and truncates with an ellipsis, and scans iframes", async () => {
+        html = `<html><body>
+          <script src="http://insecure.example/1.js"></script>
+          <script src="http://insecure.example/2.js"></script>
+          <script src="http://insecure.example/3.js"></script>
+          <script src="http://insecure.example/4.js"></script>
+          <script src="http://insecure.example/5.js"></script>
+          <iframe src="http://insecure.example/frame"></iframe>
+        </body></html>`;
+        const baseUrl = `https://127.0.0.1:${String(port)}`;
+        const outcome = await securityTlsCheck.run(
+          contextFor([{ url: baseUrl, finalUrl: baseUrl, body: html }], baseUrl, {
+            "security.tls": { options: { ca: CERT } },
+          }),
+        );
+        const finding = outcome.findings.find((item) => item.message.includes("6 resource(s)"));
+        expect(finding).toBeDefined();
+        expect(finding?.severity).toBe("error");
+        const message = finding?.message ?? "";
+        const offenderMatches = [
+          "http://insecure.example/1.js",
+          "http://insecure.example/2.js",
+          "http://insecure.example/3.js",
+          "http://insecure.example/4.js",
+          "http://insecure.example/5.js",
+          "http://insecure.example/frame",
+        ].filter((url) => message.includes(url));
+        expect(offenderMatches).toHaveLength(3);
+        expect(message).toContain("…");
+      });
+    });
+
+    describe("against a TCP server that never completes a TLS handshake", () => {
+      let tcp: TcpServer;
+      let port: number;
+      const accepted = new Set<Socket>();
+
+      beforeEach(async () => {
+        tcp = createTcpServer((socket) => {
+          // accept the connection but never respond — the TLS handshake will time out.
+          accepted.add(socket);
+          socket.on("close", () => accepted.delete(socket));
+        });
+        await new Promise<void>((resolve) => {
+          tcp.listen(0, "127.0.0.1", resolve);
+        });
+        const address = tcp.address();
+        if (address === null || typeof address === "string") {
+          throw new Error("expected an AddressInfo");
+        }
+        port = address.port;
+      });
+
+      afterEach(async () => {
+        for (const socket of accepted) socket.destroy();
+        await new Promise<void>((resolve, reject) => {
+          tcp.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        });
+      });
+
+      it(
+        "reports a warning classified as 'Could not inspect' when the probe times out",
+        { timeout: 5_000 },
+        async () => {
+          const baseUrl = `https://127.0.0.1:${String(port)}/`;
+          const outcome = await securityTlsCheck.run(
+            contextFor([{ url: baseUrl, finalUrl: baseUrl, body: "<html></html>" }], baseUrl, {
+              "security.tls": { options: { timeoutMs: 300 } },
+            }),
+          );
+          const warnings = outcome.findings.filter((item) => item.severity === "warning");
+          expect(warnings).toHaveLength(1);
+          expect(warnings[0]?.message).toContain("Could not inspect");
+        },
+      );
     });
   });
 });

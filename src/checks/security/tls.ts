@@ -138,17 +138,20 @@ export const securityTlsCheck: Check = {
   },
 };
 
-/** Test seam: checks."security.tls".options.{ca,rejectUnauthorized} feed the probe. */
+/** Test seam: checks."security.tls".options.{ca,rejectUnauthorized,timeoutMs} feed the probe. */
 function tlsProbeOptions(ctx: Parameters<Check["run"]>[0]): {
   ca?: string;
   rejectUnauthorized?: boolean;
+  timeoutMs?: number;
 } {
   const raw = ctx.config.checks["security.tls"]?.options;
   const ca = typeof raw?.["ca"] === "string" ? raw["ca"] : undefined;
   const rejectUnauthorized =
     typeof raw?.["rejectUnauthorized"] === "boolean" ? raw["rejectUnauthorized"] : undefined;
+  const timeoutMs = typeof raw?.["timeoutMs"] === "number" ? raw["timeoutMs"] : undefined;
   return {
     ...(ca !== undefined && { ca }),
     ...(rejectUnauthorized !== undefined && { rejectUnauthorized }),
+    ...(timeoutMs !== undefined && { timeoutMs }),
   };
 }
