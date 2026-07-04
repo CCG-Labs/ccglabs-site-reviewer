@@ -1,0 +1,7 @@
+# Test-only TLS fixtures: a self-signed localhost certificate pair used by
+# tests/check-tls.test.ts. Never used outside the test suite.
+[extend]
+useDefault = true
+
+[allowlist]
+paths = ['''tests/fixtures/tls/.*''']
