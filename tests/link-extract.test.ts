@@ -60,6 +60,15 @@ describe("extractPageRefs", () => {
       "https://example.com/v.mp4",
     ]);
   });
+
+  it("skips an entire srcset attribute when it contains a data: URI, without dropping other assets", () => {
+    const { assets } = extractPageRefs(
+      `<img srcset="data:image/png;base64,AAAA 1x, /real.png 2x">
+       <img src="/other.png">`,
+      "https://example.com/",
+    );
+    expect(assets.sort()).toEqual(["https://example.com/other.png"]);
+  });
 });
 
 describe("hasAnchorTarget", () => {

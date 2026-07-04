@@ -68,6 +68,8 @@ export default defineConfig({
 });
 ```
 
+Internal asset probing caps at 500 unique URLs per run, external at 50; overflow is logged in debug output.
+
 ## Configuration
 
 `site-review.config.ts` (or `.js` / `.json`) in the working directory:

@@ -1,8 +1,9 @@
 import { allowedOriginsFor } from "../../crawl/crawler.js";
-import type { Check, CheckContext, Finding } from "../../types.js";
+import type { Check, CheckContext, CrawledPage, Finding } from "../../types.js";
 import { extractPageRefs, hasAnchorTarget } from "./link-extract.js";
 
 const EXTERNAL_PROBE_LIMIT = 50;
+const INTERNAL_PROBE_LIMIT = 500;
 
 interface LinkCheckOptions {
   ignore: string[];
@@ -38,6 +39,17 @@ export const linksCheck: Check = {
     const allowedOrigins = allowedOriginsFor(new URL(ctx.baseUrl));
     const capped = ctx.pages.stats().capped;
 
+    // The PageStore is keyed by the crawler's requested URL. When a page redirected
+    // (trailing slash, http→https), links resolved against its finalUrl need a second
+    // lookup keyed by finalUrl to avoid false "broken link" errors.
+    const pageByUrl = new Map<string, CrawledPage>();
+    for (const stored of ctx.pages.all()) {
+      pageByUrl.set(stored.url, stored);
+      if (!pageByUrl.has(stored.finalUrl)) pageByUrl.set(stored.finalUrl, stored);
+    }
+    const lookup = (url: string): CrawledPage | undefined =>
+      ctx.pages.get(url) ?? pageByUrl.get(url);
+
     const findings: Finding[] = [];
     const pagesWithErrors = new Set<string>();
     const record = (finding: Finding): void => {
@@ -53,7 +65,7 @@ export const linksCheck: Check = {
       const result = (async (): Promise<ProbeResult> => {
         try {
           const head = await ctx.fetch(url, { method: "HEAD" });
-          if (head.status === 405 || head.status === 501) {
+          if (head.status >= 400) {
             const get = await ctx.fetch(url);
             return { kind: "status", status: get.status };
           }
@@ -85,7 +97,7 @@ export const linksCheck: Check = {
       for (const link of refs.links) {
         if (isIgnored(link.url)) continue;
         if (allowedOrigins.has(new URL(link.url).origin)) {
-          const target = ctx.pages.get(link.url);
+          const target = lookup(link.url);
           if (target === undefined) {
             if (capped) {
               unverifiable += 1;
@@ -131,8 +143,16 @@ export const linksCheck: Check = {
       }
     }
 
+    const internalAssetEntries = [...internalAssetRefs.entries()];
+    if (internalAssetEntries.length > INTERNAL_PROBE_LIMIT) {
+      ctx.logger.debug("Internal asset probe cap reached", {
+        probed: INTERNAL_PROBE_LIMIT,
+        skipped: internalAssetEntries.length - INTERNAL_PROBE_LIMIT,
+      });
+      internalAssetEntries.length = INTERNAL_PROBE_LIMIT;
+    }
     await Promise.all(
-      [...internalAssetRefs.entries()].map(async ([assetUrl, pageUrls]) => {
+      internalAssetEntries.map(async ([assetUrl, pageUrls]) => {
         const result = await probe(assetUrl);
         if (result.kind === "unreachable") {
           for (const pageUrl of pageUrls) {

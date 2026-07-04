@@ -59,7 +59,11 @@ export function extractPageRefs(html: string, pageUrl: string): PageRefs {
     addAsset($(element).attr("src"));
   });
   $("img[srcset], source[srcset]").each((_index, element) => {
-    for (const candidate of parseSrcset($(element).attr("srcset") ?? "")) addAsset(candidate);
+    const srcset = $(element).attr("srcset") ?? "";
+    // srcset splits on ",", which mangles embedded data: URIs into bogus candidates
+    // (e.g. the base64 payload gets treated as a relative path). Skip such attributes entirely.
+    if (srcset.includes("data:")) return;
+    for (const candidate of parseSrcset(srcset)) addAsset(candidate);
   });
   $('link[rel~="stylesheet" i][href]').each((_index, element) => {
     addAsset($(element).attr("href"));

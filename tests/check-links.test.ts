@@ -22,8 +22,9 @@ const stubResult = (url: string, status: number): FetchResult => ({
 const fetchStub =
   (routes: Record<string, number | "reject">, log: string[] = []): FetchStub =>
   (url, init) => {
-    log.push(`${init?.method ?? "GET"} ${url}`);
-    const route = routes[url];
+    const method = init?.method ?? "GET";
+    log.push(`${method} ${url}`);
+    const route = routes[`${method} ${url}`] ?? routes[url];
     if (route === undefined) return Promise.resolve(stubResult(url, 404));
     if (route === "reject") return Promise.reject(new Error("connection refused"));
     return Promise.resolve(stubResult(url, route));
@@ -86,6 +87,20 @@ describe("functionality.links", () => {
     expect(outcome.score).toBe(0); // /gone is non-2xx so pages checked = [/] only; that one page carries errors
   });
 
+  it("resolves links against a redirected page's finalUrl instead of only its requested url", async () => {
+    const outcome = await linksCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/about",
+          finalUrl: "https://example.com/about/",
+          redirected: true,
+          body: html('<div id="team"></div><a href="/about/#team">t</a><a href="/about/">a</a>'),
+        },
+      ]),
+    );
+    expect(outcome).toEqual({ score: 100, findings: [] });
+  });
+
   it("skips unverifiable links instead of guessing when the crawl was capped", async () => {
     const outcome = await linksCheck.run(
       contextFor(
@@ -142,6 +157,24 @@ describe("functionality.links", () => {
     expect(outcome.score).toBe(0);
   });
 
+  it("falls back to GET for an internal asset whenever HEAD fails, not only on 405/501", async () => {
+    const outcome = await linksCheck.run(
+      contextFor(
+        [
+          {
+            url: "https://example.com/",
+            body: html('<img src="/head-hostile.png">'),
+          },
+        ],
+        fetchStub({
+          "HEAD https://example.com/head-hostile.png": 404,
+          "GET https://example.com/head-hostile.png": 200,
+        }),
+      ),
+    );
+    expect(outcome).toEqual({ score: 100, findings: [] });
+  });
+
   it("probes each unique URL once across pages", async () => {
     const log: string[] = [];
     await linksCheck.run(
@@ -175,7 +208,8 @@ describe("functionality.links", () => {
     ]);
     expect(errors.every((finding) => finding.message.includes("/broken.png"))).toBe(true);
     expect(outcome.score).toBe(0);
-    expect(log.filter((entry) => entry.includes("/broken.png"))).toHaveLength(1);
+    // HEAD 404 → GET fallback, but only once thanks to the probe cache (not once per page).
+    expect(log.filter((entry) => entry.includes("/broken.png"))).toHaveLength(2);
   });
 
   it("honors the ignore option for links and assets", async () => {
@@ -263,6 +297,19 @@ describe("functionality.links", () => {
       contextFor([{ url: "https://example.com/", body }], fetchStub(routes, log), "production"),
     );
     expect(log).toHaveLength(50);
+  });
+
+  it("caps internal asset probing at 500 unique URLs", async () => {
+    const log: string[] = [];
+    const body = html(
+      Array.from({ length: 510 }, (_v, i) => `<img src="/a${String(i)}.png">`).join(""),
+    );
+    const routes: Record<string, number> = {};
+    for (let i = 0; i < 510; i += 1) routes[`https://example.com/a${String(i)}.png`] = 200;
+    await linksCheck.run(
+      contextFor([{ url: "https://example.com/", body }], fetchStub(routes, log)),
+    );
+    expect(log).toHaveLength(500);
   });
 
   it("warns when an external link is unreachable in production", async () => {
