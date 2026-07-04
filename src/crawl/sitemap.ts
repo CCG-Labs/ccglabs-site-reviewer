@@ -9,7 +9,7 @@ interface ParsedSitemap {
   childSitemaps: string[];
 }
 
-function parseSitemapXml(xml: string): ParsedSitemap {
+export function parseSitemapXml(xml: string): ParsedSitemap {
   const $ = load(xml, { xml: true });
   const text = (selector: string): string[] =>
     $(selector)

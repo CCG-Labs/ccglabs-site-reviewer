@@ -1,7 +1,16 @@
 export type Environment = "local" | "ci" | "production";
 
-export type CategoryId =
-  "functionality" | "performance" | "accessibility" | "seo" | "security" | "content" | "operations";
+export const CATEGORY_IDS = [
+  "functionality",
+  "performance",
+  "accessibility",
+  "seo",
+  "security",
+  "content",
+  "operations",
+] as const;
+
+export type CategoryId = (typeof CATEGORY_IDS)[number];
 
 export type Severity = "error" | "warning" | "info";
 
