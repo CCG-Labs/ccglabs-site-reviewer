@@ -1,3 +1,4 @@
+import { normalizePageUrl } from "../../crawl/url.js";
 import type { Check, CheckContext, CrawledPage, Finding } from "../../types.js";
 import { extractPageMeta } from "./page-meta.js";
 
@@ -8,10 +9,14 @@ const DESCRIPTION_MAX_LENGTH = 160;
 function noindexAllowlist(ctx: CheckContext): Set<string> {
   const raw = ctx.config.checks["seo.meta-tags"]?.options?.["noindexAllow"];
   if (!Array.isArray(raw)) return new Set();
-  return new Set(raw.filter((entry): entry is string => typeof entry === "string"));
+  return new Set(
+    raw
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => normalizePageUrl(entry) ?? entry),
+  );
 }
 
-function headerNoindex(page: CrawledPage): boolean {
+export function headerNoindex(page: CrawledPage): boolean {
   // Each directive may carry a user-agent prefix ("googlebot: noindex"); strip
   // it before matching. Safe for "unavailable_after: <date>" — the last token
   // is the date and matches nothing.
@@ -53,6 +58,12 @@ function pageFindings(page: CrawledPage, meta: ReturnType<typeof extractPageMeta
       "error",
       "Page has no meta description (or it is empty).",
       "Add a unique meta description of 50–160 characters.",
+    );
+  } else if (meta.descriptions.length > 1) {
+    add(
+      "error",
+      `Page has ${String(meta.descriptions.length)} meta description tags.`,
+      "Keep exactly one meta description per page.",
     );
   } else {
     const length = (meta.descriptions[0] ?? "").length;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CATEGORY_IDS } from "../types.js";
 
 export const REPORT_VERSION = 2;
 
@@ -31,15 +32,7 @@ export const crawlStatsSchema = z.object({
 });
 
 export const categoryReportSchema = z.object({
-  id: z.enum([
-    "functionality",
-    "performance",
-    "accessibility",
-    "seo",
-    "security",
-    "content",
-    "operations",
-  ]),
+  id: z.enum(CATEGORY_IDS),
   score: z.number().min(0).max(100),
   checks: z.array(checkReportSchema),
 });

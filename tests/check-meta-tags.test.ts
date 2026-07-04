@@ -114,6 +114,24 @@ describe("seo.meta-tags", () => {
     expect(outcome.score).toBe(0); // the only page has error findings
   });
 
+  it("flags multiple meta description tags on the same page as an error", async () => {
+    const outcome = await metaTagsCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/",
+          body: `<html lang="en"><head>
+            <title>Home</title>
+            <meta name="description" content="A perfectly reasonable description that sits comfortably within the limits.">
+            <meta name="description" content="A second description tag that should not be here.">
+            <link rel="canonical" href="https://example.com/">
+          </head><body><h1>Home</h1></body></html>`,
+        },
+      ]),
+    );
+    const errors = findingsBySeverity(outcome.findings, "error");
+    expect(errors.some((finding) => finding.message.includes("2 meta description"))).toBe(true);
+  });
+
   it("flags duplicate titles as errors and duplicate descriptions as warnings", async () => {
     const outcome = await metaTagsCheck.run(
       contextFor([
@@ -162,6 +180,20 @@ describe("seo.meta-tags", () => {
     const allowed = await metaTagsCheck.run(
       contextFor([page], "production", {
         "seo.meta-tags": { options: { noindexAllow: ["https://example.com/hidden"] } },
+      }),
+    );
+    expect(allowed.findings.some((f) => f.message.includes("noindex"))).toBe(false);
+  });
+
+  it("normalizes noindexAllow entries so a fragment-carrying config value still matches", async () => {
+    const page = {
+      url: "https://example.com/hidden",
+      body: goodPage("Hidden"),
+      headers: { "content-type": "text/html", "x-robots-tag": "noindex, nofollow" },
+    };
+    const allowed = await metaTagsCheck.run(
+      contextFor([page], "production", {
+        "seo.meta-tags": { options: { noindexAllow: ["https://example.com/hidden#frag"] } },
       }),
     );
     expect(allowed.findings.some((f) => f.message.includes("noindex"))).toBe(false);

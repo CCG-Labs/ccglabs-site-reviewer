@@ -26,7 +26,12 @@ function captureIo(): CliIo & { stdout: () => string; stderr: () => string } {
 
 describe("runCli", () => {
   it("exits 0 and emits a schema-valid JSON report for a passing site", async () => {
-    server = await startServer((_req, res) => {
+    server = await startServer((req, res) => {
+      if (req.url === "/robots.txt" || req.url === "/sitemap.xml") {
+        res.statusCode = 404;
+        res.end("not found");
+        return;
+      }
       res.end("<html></html>");
     });
     const io = captureIo();
@@ -52,7 +57,12 @@ describe("runCli", () => {
   });
 
   it("applies --env and --skip flags", async () => {
-    server = await startServer((_req, res) => {
+    server = await startServer((req, res) => {
+      if (req.url === "/robots.txt" || req.url === "/sitemap.xml") {
+        res.statusCode = 404;
+        res.end("not found");
+        return;
+      }
       res.end("ok");
     });
     const io = captureIo();
@@ -70,7 +80,12 @@ describe("runCli", () => {
   });
 
   it("prints the console summary in the default both format", async () => {
-    server = await startServer((_req, res) => {
+    server = await startServer((req, res) => {
+      if (req.url === "/robots.txt" || req.url === "/sitemap.xml") {
+        res.statusCode = 404;
+        res.end("not found");
+        return;
+      }
       res.end("ok");
     });
     const io = captureIo();
@@ -131,7 +146,12 @@ describe("runCli", () => {
   });
 
   it("accepts valid --max-pages and --fail-threshold values", async () => {
-    server = await startServer((_req, res) => {
+    server = await startServer((req, res) => {
+      if (req.url === "/robots.txt" || req.url === "/sitemap.xml") {
+        res.statusCode = 404;
+        res.end("not found");
+        return;
+      }
       res.end("ok");
     });
     const io = captureIo();

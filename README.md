@@ -42,16 +42,20 @@ report's `crawl` block (`pagesDiscovered` / `pagesScanned` / `capped`) tells
 you whether coverage was complete; a capped crawl also surfaces as a
 `functionality.crawl-coverage` warning. Crawl results are held in memory for
 the run; worst case is roughly `maxPages` × 5 MB (the per-response body cap)
-for HTML-heavy sites — lower `maxPages` for constrained environments.
+for HTML-heavy sites — lower `maxPages` for constrained environments. The
+crawler itself deliberately ignores robots.txt — it is the site owner's own
+tool and needs to see everything — while the `seo.sitemap-robots` check
+separately reports what search engines will and won't be allowed to crawl.
 
 ## Checks
 
-| id                             | what it verifies                                                                                                                        |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `functionality.reachable`      | the base URL responds successfully (no 4xx/5xx, no unfollowed off-origin redirect)                                                      |
-| `functionality.crawl-coverage` | the crawl covered the site without hitting `maxPages`                                                                                   |
-| `functionality.links`          | internal links, anchors, and assets resolve (blocking); external links validated in production only (warnings, capped at 50)            |
-| `seo.meta-tags`                | one good title/description/canonical/h1/lang per page; titles unique site-wide; no stray `noindex` (error in production, warning in ci) |
+| id                             | what it verifies                                                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `functionality.reachable`      | the base URL responds successfully (no 4xx/5xx, no unfollowed off-origin redirect)                                                                           |
+| `functionality.crawl-coverage` | the crawl covered the site without hitting `maxPages`                                                                                                        |
+| `functionality.links`          | internal links, anchors, and assets resolve (blocking); external links validated in production only (warnings, capped at 50)                                 |
+| `seo.meta-tags`                | one good title/description/canonical/h1/lang per page; titles unique site-wide; no stray `noindex` (error in production, warning in ci)                      |
+| `seo.sitemap-robots`           | sitemap.xml exists and lists only live, canonical, indexable, robots-allowed URLs; crawled pages appear in it; robots.txt is sane and references the sitemap |
 
 Per-check options go under `checks` in the config file:
 

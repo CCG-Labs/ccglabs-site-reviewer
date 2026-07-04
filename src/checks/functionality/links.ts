@@ -1,4 +1,5 @@
 import { allowedOriginsFor } from "../../crawl/crawler.js";
+import { normalizePageUrl } from "../../crawl/url.js";
 import type { Check, CheckContext, CrawledPage, Finding } from "../../types.js";
 import { extractPageRefs, hasAnchorTarget } from "./link-extract.js";
 
@@ -45,7 +46,8 @@ export const linksCheck: Check = {
     const pageByUrl = new Map<string, CrawledPage>();
     for (const stored of ctx.pages.all()) {
       pageByUrl.set(stored.url, stored);
-      if (!pageByUrl.has(stored.finalUrl)) pageByUrl.set(stored.finalUrl, stored);
+      const finalKey = normalizePageUrl(stored.finalUrl) ?? stored.finalUrl;
+      if (!pageByUrl.has(finalKey)) pageByUrl.set(finalKey, stored);
     }
     const lookup = (url: string): CrawledPage | undefined =>
       ctx.pages.get(url) ?? pageByUrl.get(url);
