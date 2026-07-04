@@ -13,7 +13,20 @@ afterEach(async () => {
 
 describe("runReview", () => {
   it("produces a schema-valid passing report for a healthy site", async () => {
-    server = await startServer((_req, res) => {
+    server = await startServer((req, res) => {
+      const origin = `http://${req.headers.host ?? "127.0.0.1"}`;
+      if (req.url === "/robots.txt") {
+        res.setHeader("content-type", "text/plain");
+        res.end(`User-agent: *\nDisallow:\n\nSitemap: ${origin}/sitemap.xml\n`);
+        return;
+      }
+      if (req.url === "/sitemap.xml") {
+        res.setHeader("content-type", "application/xml");
+        res.end(
+          `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/</loc></url></urlset>`,
+        );
+        return;
+      }
       res.end("<html></html>");
     });
     const report = await runReview({ url: server.url });
@@ -68,7 +81,12 @@ describe("runReview", () => {
   });
 
   it("honors config overrides that disable a check", async () => {
-    server = await startServer((_req, res) => {
+    server = await startServer((req, res) => {
+      if (req.url === "/robots.txt" || req.url === "/sitemap.xml") {
+        res.statusCode = 404;
+        res.end("not found");
+        return;
+      }
       res.end("ok");
     });
     const report = await runReview({
