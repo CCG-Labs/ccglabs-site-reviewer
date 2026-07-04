@@ -1,3 +1,4 @@
+import { imagesCheck } from "../checks/content/images.js";
 import { placeholdersCheck } from "../checks/content/placeholders.js";
 import { crawlCoverageCheck } from "../checks/functionality/crawl-coverage.js";
 import { linksCheck } from "../checks/functionality/links.js";
@@ -19,6 +20,7 @@ export const builtinChecks: Check[] = [
   structuredDataCheck,
   socialMetaCheck,
   placeholdersCheck,
+  imagesCheck,
   securityHeadersCheck,
   securityTlsCheck,
 ];
