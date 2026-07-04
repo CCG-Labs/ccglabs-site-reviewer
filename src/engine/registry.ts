@@ -1,3 +1,4 @@
+import { placeholdersCheck } from "../checks/content/placeholders.js";
 import { crawlCoverageCheck } from "../checks/functionality/crawl-coverage.js";
 import { linksCheck } from "../checks/functionality/links.js";
 import { reachableCheck } from "../checks/functionality/reachable.js";
@@ -17,6 +18,7 @@ export const builtinChecks: Check[] = [
   sitemapRobotsCheck,
   structuredDataCheck,
   socialMetaCheck,
+  placeholdersCheck,
   securityHeadersCheck,
   securityTlsCheck,
 ];
