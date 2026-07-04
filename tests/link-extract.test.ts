@@ -25,6 +25,17 @@ describe("extractPageRefs", () => {
     expect(links).toEqual([{ url: "https://example.com/a", fragment: "séction" }]);
   });
 
+  it("keeps a fragmentless link distinct from one whose fragment decodes to the sentinel", () => {
+    const { links } = extractPageRefs(
+      `<a href="/a">1</a><a href="/a#%EF%BF%BD">2</a>`,
+      "https://example.com/",
+    );
+    expect(links).toEqual([
+      { url: "https://example.com/a", fragment: undefined },
+      { url: "https://example.com/a", fragment: "�" },
+    ]);
+  });
+
   it("collects assets from img src/srcset, source, script, stylesheet, video and audio", () => {
     const { assets } = extractPageRefs(
       `<img src="/i.png">

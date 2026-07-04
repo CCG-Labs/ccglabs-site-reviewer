@@ -45,7 +45,7 @@ export function extractPageRefs(html: string, pageUrl: string): PageRefs {
     if (resolved.protocol !== "http:" && resolved.protocol !== "https:") return;
     const fragment = resolved.hash === "" ? undefined : decodeFragment(resolved.hash.slice(1));
     resolved.hash = "";
-    const key = `${resolved.href}#${fragment ?? "�"}`;
+    const key = fragment === undefined ? `0${resolved.href}` : `1${resolved.href} ${fragment}`;
     if (!links.has(key)) links.set(key, { url: resolved.href, fragment });
   });
 
