@@ -3,6 +3,7 @@ import { linksCheck } from "../checks/functionality/links.js";
 import { reachableCheck } from "../checks/functionality/reachable.js";
 import { metaTagsCheck } from "../checks/seo/meta-tags.js";
 import { sitemapRobotsCheck } from "../checks/seo/sitemap-robots.js";
+import { securityHeadersCheck } from "../checks/security/headers.js";
 import type { Check } from "../types.js";
 
 export const builtinChecks: Check[] = [
@@ -11,4 +12,5 @@ export const builtinChecks: Check[] = [
   linksCheck,
   metaTagsCheck,
   sitemapRobotsCheck,
+  securityHeadersCheck,
 ];

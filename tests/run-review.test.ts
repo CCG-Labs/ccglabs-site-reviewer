@@ -56,6 +56,10 @@ describe("runReview", () => {
     );
   });
 
+  it("throws SiteUnreachableError for a malformed URL", async () => {
+    await expect(runReview({ url: "not a url" })).rejects.toBeInstanceOf(SiteUnreachableError);
+  });
+
   it("runs custom checks and skips those not applicable to the environment", async () => {
     server = await startServer((_req, res) => {
       res.end("ok");
