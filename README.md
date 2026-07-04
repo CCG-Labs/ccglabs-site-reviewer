@@ -46,12 +46,13 @@ for HTML-heavy sites — lower `maxPages` for constrained environments.
 
 ## Checks
 
-| id                             | what it verifies                                                                                                                        |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `functionality.reachable`      | the base URL responds successfully (no 4xx/5xx, no unfollowed off-origin redirect)                                                      |
-| `functionality.crawl-coverage` | the crawl covered the site without hitting `maxPages`                                                                                   |
-| `functionality.links`          | internal links, anchors, and assets resolve (blocking); external links validated in production only (warnings, capped at 50)            |
-| `seo.meta-tags`                | one good title/description/canonical/h1/lang per page; titles unique site-wide; no stray `noindex` (error in production, warning in ci) |
+| id                             | what it verifies                                                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `functionality.reachable`      | the base URL responds successfully (no 4xx/5xx, no unfollowed off-origin redirect)                                                                           |
+| `functionality.crawl-coverage` | the crawl covered the site without hitting `maxPages`                                                                                                        |
+| `functionality.links`          | internal links, anchors, and assets resolve (blocking); external links validated in production only (warnings, capped at 50)                                 |
+| `seo.meta-tags`                | one good title/description/canonical/h1/lang per page; titles unique site-wide; no stray `noindex` (error in production, warning in ci)                      |
+| `seo.sitemap-robots`           | sitemap.xml exists and lists only live, canonical, indexable, robots-allowed URLs; crawled pages appear in it; robots.txt is sane and references the sitemap |
 
 Per-check options go under `checks` in the config file:
 
