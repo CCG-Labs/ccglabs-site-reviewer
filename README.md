@@ -42,7 +42,10 @@ report's `crawl` block (`pagesDiscovered` / `pagesScanned` / `capped`) tells
 you whether coverage was complete; a capped crawl also surfaces as a
 `functionality.crawl-coverage` warning. Crawl results are held in memory for
 the run; worst case is roughly `maxPages` × 5 MB (the per-response body cap)
-for HTML-heavy sites — lower `maxPages` for constrained environments.
+for HTML-heavy sites — lower `maxPages` for constrained environments. The
+crawler itself deliberately ignores robots.txt — it is the site owner's own
+tool and needs to see everything — while the `seo.sitemap-robots` check
+separately reports what search engines will and won't be allowed to crawl.
 
 ## Checks
 

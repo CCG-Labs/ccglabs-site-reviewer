@@ -199,16 +199,18 @@ export const sitemapRobotsCheck: Check = {
           `Sitemap lists ${entry}, which redirects to ${page.finalUrl}.`,
           "List the final canonical URL directly instead of a redirecting one.",
         );
-      } else if (page.body !== "") {
-        const meta = extractPageMeta(page.body);
-        if (meta.metaNoindex || headerNoindex(page)) {
+      } else {
+        // Header-based noindex (e.g. X-Robots-Tag on a PDF) can apply to any
+        // stored entry, HTML or not; only the meta-tag/canonical checks need a body.
+        const meta = page.body !== "" ? extractPageMeta(page.body) : undefined;
+        if ((meta?.metaNoindex ?? false) || headerNoindex(page)) {
           add(
             "error",
             entry,
             `Sitemap lists ${entry}, which is marked noindex.`,
             "Remove noindexed pages from the sitemap — the two signals contradict each other.",
           );
-        } else if (meta.canonicals.length === 1) {
+        } else if (meta !== undefined && meta.canonicals.length === 1) {
           const canonical = normalizePageUrl(meta.canonicals[0] ?? "", page.finalUrl);
           if (canonical !== undefined && canonical !== entry && canonical !== page.finalUrl) {
             add(
@@ -230,6 +232,7 @@ export const sitemapRobotsCheck: Check = {
       }
     }
 
+    const missingBlockStart = findings.length;
     if (sitemap.exists && entrySet.size > 0) {
       let missing = 0;
       for (const page of ctx.pages.htmlPages()) {
@@ -269,10 +272,20 @@ export const sitemapRobotsCheck: Check = {
       findings: findings.length,
     });
 
+    // Missing-from-sitemap findings emitted in the block above (up to
+    // MISSING_FROM_SITEMAP_LIMIT individual warnings plus one summary warning).
+    const missingWarningFindingsEmitted = findings.length - missingBlockStart;
+
     const errors = findings.filter((finding) => finding.severity === "error").length;
     const warnings = findings.filter((finding) => finding.severity === "warning").length;
+    // A site missing dozens of pages from its sitemap is one soft condition,
+    // not dozens of independent problems — cap that class's scoring
+    // contribution at 4 warning-units (20 points) so it can't alone saturate
+    // the score to 0 while the full findings list still reports every page.
+    const otherWarnings = warnings - missingWarningFindingsEmitted;
+    const scoringWarnings = otherWarnings + Math.min(missingWarningFindingsEmitted, 4);
     return {
-      score: Math.max(0, 100 - ERROR_COST * errors - WARNING_COST * warnings),
+      score: Math.max(0, 100 - ERROR_COST * errors - WARNING_COST * scoringWarnings),
       findings,
     };
   },

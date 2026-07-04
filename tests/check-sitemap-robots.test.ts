@@ -339,4 +339,42 @@ describe("seo.sitemap-robots", () => {
       outcome.findings.some((finding) => finding.message.includes("more indexable pages")),
     ).toBe(true);
   });
+
+  it("damps the missing-from-sitemap class's scoring impact so it can't alone drive the score to 0", async () => {
+    const extraPages = Array.from({ length: 30 }, (_unused, index) => ({
+      url: `https://example.com/page-${String(index)}`,
+      body: goodBody,
+    }));
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor([{ url: "https://example.com/", body: goodBody }, ...extraPages], {
+        [SITEMAP]: { status: 200, body: sitemapXml(["https://example.com/"]) },
+        [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\n` },
+      }),
+    );
+    expect(outcome.findings).toHaveLength(21);
+    expect(outcome.findings.every((finding) => finding.severity === "warning")).toBe(true);
+    // 21 missing-class warnings would cost 105 points uncapped; damped to 4
+    // warning-units (20 points) so this one soft condition can't zero the score.
+    expect(outcome.score).toBe(80);
+  });
+
+  it("catches X-Robots-Tag noindex on a non-HTML sitemap entry (e.g. a PDF)", async () => {
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor(
+        [
+          {
+            url: "https://example.com/doc.pdf",
+            body: "",
+            headers: { "content-type": "application/pdf", "x-robots-tag": "noindex" },
+          },
+        ],
+        {
+          [SITEMAP]: { status: 200, body: sitemapXml(["https://example.com/doc.pdf"]) },
+          [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\n` },
+        },
+      ),
+    );
+    const errors = outcome.findings.filter((finding) => finding.severity === "error");
+    expect(errors.some((finding) => finding.message.includes("noindex"))).toBe(true);
+  });
 });
