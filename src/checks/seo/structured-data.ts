@@ -22,10 +22,15 @@ const isPresent = (value: unknown): boolean => {
   return true;
 };
 
+const SCHEMA_ORG_PREFIX = /^https?:\/\/schema\.org\//i;
+
+const normalizeType = (type: string): string => type.replace(SCHEMA_ORG_PREFIX, "");
+
 function entityTypes(entity: JsonLdEntity): string[] {
   const raw = entity.value["@type"];
-  if (typeof raw === "string") return [raw];
-  if (Array.isArray(raw)) return raw.filter((item): item is string => typeof item === "string");
+  if (typeof raw === "string") return [normalizeType(raw)];
+  if (Array.isArray(raw))
+    return raw.filter((item): item is string => typeof item === "string").map(normalizeType);
   return [];
 }
 
@@ -64,7 +69,7 @@ export const structuredDataCheck: Check = {
         });
       }
 
-      const singletonNames = new Map<string, { name: string; count: number }>();
+      const singletonNames = new Map<string, string>();
       for (const entity of extraction.entities) {
         const types = entityTypes(entity);
         if (types.length === 0) {
@@ -101,18 +106,15 @@ export const structuredDataCheck: Check = {
           }
           if (SINGLETON_TYPES.includes(type)) {
             const name = typeof entity.value["name"] === "string" ? entity.value["name"] : "";
-            const seen = singletonNames.get(type);
-            if (seen === undefined) singletonNames.set(type, { name, count: 1 });
-            else {
-              seen.count += 1;
-              if (name !== "" && seen.name !== "" && name !== seen.name) {
-                record({
-                  severity: "warning",
-                  url: page.url,
-                  message: `Conflicting ${type} entities on one page: "${seen.name}" vs "${name}".`,
-                  recommendation: `Emit a single canonical ${type} entity per page.`,
-                });
-              }
+            const seenName = singletonNames.get(type);
+            if (seenName === undefined) singletonNames.set(type, name);
+            else if (name !== "" && seenName !== "" && name !== seenName) {
+              record({
+                severity: "warning",
+                url: page.url,
+                message: `Conflicting ${type} entities on one page: "${seenName}" vs "${name}".`,
+                recommendation: `Emit a single canonical ${type} entity per page.`,
+              });
             }
           }
         }

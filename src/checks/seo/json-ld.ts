@@ -43,17 +43,15 @@ export function extractJsonLd(html: string): JsonLdExtraction {
     const blockIndex = extraction.blockCount;
     extraction.blockCount += 1;
     const raw = $(element).text();
-    let parsed: unknown;
     try {
-      parsed = JSON.parse(raw) as unknown;
+      const parsed = JSON.parse(raw) as unknown;
+      for (const entity of flatten(parsed, blockIndex)) extraction.entities.push(entity);
     } catch (error) {
       extraction.parseErrors.push({
         blockIndex,
         message: error instanceof Error ? error.message : String(error),
       });
-      return;
     }
-    extraction.entities.push(...flatten(parsed, blockIndex));
   });
   return extraction;
 }

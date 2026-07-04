@@ -81,4 +81,11 @@ describe("extractJsonLd", () => {
     expect(result.parseErrors).toEqual([]);
     expect(result.entities).toEqual([{ value: {}, blockIndex: 0 }]);
   });
+
+  it("handles a huge top-level array without a variadic-spread stack blowout", () => {
+    const huge = JSON.stringify(Array.from({ length: 200_000 }, () => ({ "@type": "Thing" })));
+    const result = extractJsonLd(`<html>${script(huge)}</html>`);
+    expect(result.blockCount).toBe(1);
+    expect(result.entities.length).toBe(200_000);
+  });
 });

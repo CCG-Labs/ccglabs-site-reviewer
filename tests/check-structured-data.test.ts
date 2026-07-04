@@ -86,6 +86,23 @@ describe("seo.structured-data", () => {
     expect(outcome.score).toBe(100);
   });
 
+  it("normalizes a URL-form @type (https://schema.org/Article) before validating required props", async () => {
+    const outcome = await structuredDataCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/",
+          body: page([
+            script(JSON.stringify({ "@type": "https://schema.org/Article", headline: "Big News" })),
+          ]),
+        },
+      ]),
+    );
+    const warnings = outcome.findings.filter((finding) => finding.severity === "warning");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.message).toContain("datePublished");
+    expect(warnings[0]?.message).toContain("author");
+  });
+
   it("warns when an entity has no @type", async () => {
     const outcome = await structuredDataCheck.run(
       contextFor([
@@ -167,6 +184,51 @@ describe("seo.structured-data", () => {
     const conflict = warnings.find((finding) => finding.message.includes("Conflicting"));
     expect(conflict?.message).toContain("Acme");
     expect(conflict?.message).toContain("Widgets Co");
+  });
+
+  it("does not warn on two same-type singletons sharing the same name", async () => {
+    const outcome = await structuredDataCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/",
+          body: page([
+            script(
+              JSON.stringify({
+                "@type": "Organization",
+                name: "Acme",
+                url: "https://acme.example",
+              }),
+            ),
+            script(
+              JSON.stringify({
+                "@type": "Organization",
+                name: "Acme",
+                url: "https://acme.example",
+              }),
+            ),
+          ]),
+        },
+      ]),
+    );
+    const conflicts = outcome.findings.filter((finding) => finding.message.includes("Conflicting"));
+    expect(conflicts).toHaveLength(0);
+  });
+
+  it("validates required props for each type inside an @type array", async () => {
+    const outcome = await structuredDataCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/",
+          body: page([
+            script(JSON.stringify({ "@type": ["Article", "Brand"], headline: "Big News" })),
+          ]),
+        },
+      ]),
+    );
+    const warnings = outcome.findings.filter((finding) => finding.severity === "warning");
+    const articleWarning = warnings.find((finding) => finding.message.startsWith("Article"));
+    expect(articleWarning?.message).toContain("datePublished");
+    expect(articleWarning?.message).toContain("author");
   });
 
   it("emits a single site-level warning attributed to the base URL when no JSON-LD exists anywhere", async () => {
