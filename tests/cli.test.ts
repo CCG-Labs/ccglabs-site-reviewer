@@ -63,6 +63,10 @@ describe("runCli", () => {
         res.end("not found");
         return;
       }
+      res.setHeader("x-content-type-options", "nosniff");
+      res.setHeader("content-security-policy", "frame-ancestors 'none'");
+      res.setHeader("referrer-policy", "strict-origin-when-cross-origin");
+      res.setHeader("permissions-policy", "camera=()");
       res.end("ok");
     });
     const io = captureIo();

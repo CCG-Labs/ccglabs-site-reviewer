@@ -56,6 +56,10 @@ describe("runReview", () => {
     );
   });
 
+  it("throws SiteUnreachableError for a malformed URL", async () => {
+    await expect(runReview({ url: "not a url" })).rejects.toBeInstanceOf(SiteUnreachableError);
+  });
+
   it("runs custom checks and skips those not applicable to the environment", async () => {
     server = await startServer((_req, res) => {
       res.end("ok");
@@ -166,5 +170,22 @@ describe("runReview", () => {
         (finding) => finding.severity === "error" && finding.message.includes("disallow"),
       ),
     ).toBe(true);
+  });
+
+  it("surfaces security header findings in ci and skips tls outside production", async () => {
+    server = await startServer((req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
+    });
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const security = report.categories.find((category) => category.id === "security");
+    const headersCheck = security?.checks.find((entry) => entry.id === "security.headers");
+    expect(
+      headersCheck?.findings.some((finding) => finding.message.includes("X-Content-Type-Options")),
+    ).toBe(true);
+    expect(report.skipped).toContainEqual({
+      id: "security.tls",
+      reason: 'not applicable in environment "ci"',
+    });
   });
 });

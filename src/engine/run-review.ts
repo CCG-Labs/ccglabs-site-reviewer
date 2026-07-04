@@ -1,6 +1,6 @@
 import packageJson from "../../package.json" with { type: "json" };
 import { resolveConfig } from "../config/resolve.js";
-import { crawlSite } from "../crawl/crawler.js";
+import { allowedOriginsFor, crawlSite } from "../crawl/crawler.js";
 import { createFetcher, SiteUnreachableError } from "../fetch/fetcher.js";
 import { MANUAL_CHECKLIST } from "../report/manual-checklist.js";
 import {
@@ -32,7 +32,18 @@ export async function runReview(options: RunReviewOptions): Promise<ReviewReport
     ...(options.environment !== undefined && { environment: options.environment }),
   };
   const config = resolveConfig({ file: options.configFile, api: options.config, cli: cliLayer });
-  const fetchFn = createFetcher({ requestHeaders: config.requestHeaders });
+
+  let targetUrl: URL;
+  try {
+    targetUrl = new URL(options.url);
+  } catch {
+    throw new SiteUnreachableError(`Cannot reach ${options.url}: invalid URL`);
+  }
+
+  const fetchFn = createFetcher({
+    requestHeaders: config.requestHeaders,
+    trustedOrigins: allowedOriginsFor(targetUrl),
+  });
 
   try {
     await fetchFn(options.url, { method: "HEAD" });
