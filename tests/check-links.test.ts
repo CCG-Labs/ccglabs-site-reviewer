@@ -102,10 +102,13 @@ describe("functionality.links", () => {
   });
 
   it("resolves links against a finalUrl that carries a stray fragment from the redirect Location", async () => {
+    // The store is keyed by /x-original, so lookup("https://example.com/x") must go
+    // through the finalUrl index — and only succeeds if the stray #landing fragment
+    // is normalized away when that index is built.
     const outcome = await linksCheck.run(
       contextFor([
         {
-          url: "https://example.com/x",
+          url: "https://example.com/x-original",
           finalUrl: "https://example.com/x#landing",
           redirected: true,
           body: html("<div>content</div>"),
