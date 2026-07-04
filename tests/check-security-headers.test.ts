@@ -92,6 +92,24 @@ describe("security.headers", () => {
       expect(issues.some((issue) => issue.message.includes("clickjacking"))).toBe(false);
     });
 
+    it("warns on each missing recommended header", () => {
+      const issues = analyzeHeaders(
+        {
+          "x-content-type-options": "nosniff",
+          "strict-transport-security": "max-age=63072000",
+        },
+        { https: true },
+      );
+      expect(issues.filter((issue) => issue.severity === "error")).toHaveLength(0);
+      const warnings = issues.filter((issue) => issue.severity === "warning");
+      expect(warnings).toHaveLength(4);
+      const messages = warnings.map((issue) => issue.message.toLowerCase());
+      expect(messages.some((message) => message.includes("content-security-policy"))).toBe(true);
+      expect(messages.some((message) => message.includes("clickjacking"))).toBe(true);
+      expect(messages.some((message) => message.includes("referrer-policy"))).toBe(true);
+      expect(messages.some((message) => message.includes("permissions-policy"))).toBe(true);
+    });
+
     it("flags deprecated and leaky headers", () => {
       const headers = {
         ...HARDENED_HEADERS,
