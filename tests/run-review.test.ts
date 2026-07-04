@@ -100,4 +100,25 @@ describe("runReview", () => {
     expect(check?.findings.some((finding) => finding.url?.endsWith("/bare") ?? false)).toBe(true);
     expect(report.grade).toBe("fail"); // blocking check failed
   });
+
+  it("surfaces broken internal links from crawled pages", async () => {
+    server = await startServer((req, res) => {
+      if (req.url === "/missing.css" || req.url === "/gone") {
+        res.statusCode = 404;
+        res.end("not found");
+        return;
+      }
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(
+        '<html lang="en"><head><title>Home</title><meta name="description" content="A perfectly reasonable description that sits comfortably within the limits."><link rel="canonical" href="/"><link rel="stylesheet" href="/missing.css"></head><body><h1>Hi</h1><a href="/gone">gone</a></body></html>',
+      );
+    });
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const functionality = report.categories.find((category) => category.id === "functionality");
+    const check = functionality?.checks.find((entry) => entry.id === "functionality.links");
+    expect(check?.status).toBe("fail");
+    const messages = (check?.findings ?? []).map((finding) => finding.message).join(" ");
+    expect(messages).toContain("/gone");
+    expect(messages).toContain("/missing.css");
+  });
 });

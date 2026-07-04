@@ -44,7 +44,7 @@ class SitePageStore implements PageStore {
   }
 }
 
-function allowedOriginsFor(base: URL): Set<string> {
+export function allowedOriginsFor(base: URL): Set<string> {
   const origins = new Set([base.origin]);
   if (base.protocol === "http:") {
     const upgraded = new URL(base.href);

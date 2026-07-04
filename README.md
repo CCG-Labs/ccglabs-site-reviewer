@@ -50,6 +50,7 @@ for HTML-heavy sites — lower `maxPages` for constrained environments.
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `functionality.reachable`      | the base URL responds successfully (no 4xx/5xx, no unfollowed off-origin redirect)                                                      |
 | `functionality.crawl-coverage` | the crawl covered the site without hitting `maxPages`                                                                                   |
+| `functionality.links`          | internal links, anchors, and assets resolve (blocking); external links validated in production only (warnings, capped at 50)            |
 | `seo.meta-tags`                | one good title/description/canonical/h1/lang per page; titles unique site-wide; no stray `noindex` (error in production, warning in ci) |
 
 Per-check options go under `checks` in the config file:
@@ -60,9 +61,14 @@ export default defineConfig({
     "seo.meta-tags": {
       options: { noindexAllow: ["https://example.com/internal-tool"] },
     },
+    "functionality.links": {
+      options: { ignore: ["analytics.example", "/known-flaky-asset.png"] },
+    },
   },
 });
 ```
+
+Internal asset probing caps at 500 unique URLs per run, external at 50; overflow is logged in debug output.
 
 ## Configuration
 
