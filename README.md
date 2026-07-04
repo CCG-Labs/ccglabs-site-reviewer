@@ -56,6 +56,7 @@ separately reports what search engines will and won't be allowed to crawl.
 | `functionality.links`          | internal links, anchors, and assets resolve (blocking); external links validated in production only (warnings, capped at 50)                                 |
 | `seo.meta-tags`                | one good title/description/canonical/h1/lang per page; titles unique site-wide; no stray `noindex` (error in production, warning in ci)                      |
 | `seo.sitemap-robots`           | sitemap.xml exists and lists only live, canonical, indexable, robots-allowed URLs; crawled pages appear in it; robots.txt is sane and references the sitemap |
+| `seo.structured-data`          | JSON-LD parses, declares @type, and carries required properties per schema.org type; flags conflicting singletons and site-wide absence                      |
 | `security.headers`             | OWASP security headers present with sane values, including on error responses (error in production, warning in ci)                                           |
 | `security.tls`                 | https enforced, certificate valid and >30 days from expiry, no mixed content (production only)                                                               |
 
