@@ -69,9 +69,14 @@ export const linksCheck: Check = {
       return result;
     };
 
-    /** external URL (or internal asset) → first page that referenced it */
-    const internalAssetRefs = new Map<string, string>();
-    const externalRefs = new Map<string, string>();
+    /** external URL (or internal asset) → every page that referenced it (Map keyed in first-reference order) */
+    const internalAssetRefs = new Map<string, Set<string>>();
+    const externalRefs = new Map<string, Set<string>>();
+    const addRef = (refs: Map<string, Set<string>>, url: string, pageUrl: string): void => {
+      const existing = refs.get(url);
+      if (existing === undefined) refs.set(url, new Set([pageUrl]));
+      else existing.add(pageUrl);
+    };
     let unverifiable = 0;
 
     for (const page of pages) {
@@ -111,38 +116,42 @@ export const linksCheck: Check = {
               recommendation: "Point the fragment at an existing element id, or remove it.",
             });
           }
-        } else if (ctx.environment === "production" && !externalRefs.has(link.url)) {
-          externalRefs.set(link.url, page.url);
+        } else if (ctx.environment === "production") {
+          addRef(externalRefs, link.url, page.url);
         }
       }
 
       for (const asset of refs.assets) {
         if (isIgnored(asset)) continue;
         if (allowedOrigins.has(new URL(asset).origin)) {
-          if (!internalAssetRefs.has(asset)) internalAssetRefs.set(asset, page.url);
-        } else if (ctx.environment === "production" && !externalRefs.has(asset)) {
-          externalRefs.set(asset, page.url);
+          addRef(internalAssetRefs, asset, page.url);
+        } else if (ctx.environment === "production") {
+          addRef(externalRefs, asset, page.url);
         }
       }
     }
 
     await Promise.all(
-      [...internalAssetRefs.entries()].map(async ([assetUrl, pageUrl]) => {
+      [...internalAssetRefs.entries()].map(async ([assetUrl, pageUrls]) => {
         const result = await probe(assetUrl);
         if (result.kind === "unreachable") {
-          record({
-            severity: "error",
-            url: pageUrl,
-            message: `Asset unreachable: ${assetUrl} (${result.message}).`,
-            recommendation: "Fix the asset path or restore the file.",
-          });
+          for (const pageUrl of pageUrls) {
+            record({
+              severity: "error",
+              url: pageUrl,
+              message: `Asset unreachable: ${assetUrl} (${result.message}).`,
+              recommendation: "Fix the asset path or restore the file.",
+            });
+          }
         } else if (result.status >= 400) {
-          record({
-            severity: "error",
-            url: pageUrl,
-            message: `Broken asset: ${assetUrl} returns HTTP ${String(result.status)}.`,
-            recommendation: "Fix the asset path or restore the file.",
-          });
+          for (const pageUrl of pageUrls) {
+            record({
+              severity: "error",
+              url: pageUrl,
+              message: `Broken asset: ${assetUrl} returns HTTP ${String(result.status)}.`,
+              recommendation: "Fix the asset path or restore the file.",
+            });
+          }
         }
       }),
     );
@@ -156,27 +165,31 @@ export const linksCheck: Check = {
       externalEntries.length = EXTERNAL_PROBE_LIMIT;
     }
     await Promise.all(
-      externalEntries.map(async ([url, pageUrl]) => {
+      externalEntries.map(async ([url, pageUrls]) => {
         const result = await probe(url);
         if (result.kind === "unreachable") {
-          record({
-            severity: "warning",
-            url: pageUrl,
-            message: `External link unreachable: ${url} (${result.message}).`,
-            recommendation: "Verify the destination still exists; update or remove the link.",
-          });
+          for (const pageUrl of pageUrls) {
+            record({
+              severity: "warning",
+              url: pageUrl,
+              message: `External link unreachable: ${url} (${result.message}).`,
+              recommendation: "Verify the destination still exists; update or remove the link.",
+            });
+          }
         } else if (result.status === 403 || result.status === 429) {
           ctx.logger.debug("External target refused the automated request", {
             url,
             status: result.status,
           });
         } else if (result.status >= 400) {
-          record({
-            severity: "warning",
-            url: pageUrl,
-            message: `Broken external link: ${url} returns HTTP ${String(result.status)}.`,
-            recommendation: "Update or remove the link.",
-          });
+          for (const pageUrl of pageUrls) {
+            record({
+              severity: "warning",
+              url: pageUrl,
+              message: `Broken external link: ${url} returns HTTP ${String(result.status)}.`,
+              recommendation: "Update or remove the link.",
+            });
+          }
         }
       }),
     );

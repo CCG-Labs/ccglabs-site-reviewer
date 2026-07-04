@@ -156,6 +156,28 @@ describe("functionality.links", () => {
     expect(log.filter((entry) => entry.includes("/shared.png"))).toHaveLength(1);
   });
 
+  it("attributes a shared broken asset to every referencing page while probing it once", async () => {
+    const log: string[] = [];
+    const outcome = await linksCheck.run(
+      contextFor(
+        [
+          { url: "https://example.com/", body: html('<img src="/broken.png">') },
+          { url: "https://example.com/two", body: html('<img src="/broken.png">') },
+        ],
+        fetchStub({ "https://example.com/broken.png": 404 }, log),
+      ),
+    );
+    const errors = outcome.findings.filter((finding) => finding.severity === "error");
+    expect(errors).toHaveLength(2);
+    expect(errors.map((finding) => finding.url).sort()).toEqual([
+      "https://example.com/",
+      "https://example.com/two",
+    ]);
+    expect(errors.every((finding) => finding.message.includes("/broken.png"))).toBe(true);
+    expect(outcome.score).toBe(0);
+    expect(log.filter((entry) => entry.includes("/broken.png"))).toHaveLength(1);
+  });
+
   it("honors the ignore option for links and assets", async () => {
     const outcome = await linksCheck.run(
       contextFor(
