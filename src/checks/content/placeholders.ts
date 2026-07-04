@@ -12,6 +12,7 @@ interface Marker {
 }
 
 const wordFinder = (word: string): ((text: string) => number) => {
+  // eslint-disable-next-line security/detect-non-literal-regexp -- word comes from a constant, developer-authored list; no user input reaches this constructor
   const pattern = new RegExp(`\\b${word}\\b`);
   return (text) => pattern.exec(text)?.index ?? -1;
 };

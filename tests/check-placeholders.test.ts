@@ -105,16 +105,20 @@ describe("content.placeholders", () => {
   });
 
   it("does not mutate the shared pageDom cache", async () => {
-    const [page] = fixturePageStore([
+    const ctx = contextFor([
       {
         url: "https://example.com/",
         body: html("<p>All good.</p><script>var x = 1;</script>", "<title>Real Title</title>"),
       },
-    ]).all();
+    ]);
+
+    await placeholdersCheck.run(ctx);
+
+    // Assert against the SAME CrawledPage object the check consumed, so
+    // pageDom() returns the cached (potentially mutated) handle — not a
+    // fresh re-parse of the clean HTML.
+    const [page] = ctx.pages.all();
     if (page === undefined) throw new Error("expected a page");
-
-    await placeholdersCheck.run(contextFor([page]));
-
     expect(pageDom(page)("script")).toHaveLength(1);
     expect(extractPageMeta(pageDom(page)).titles).toEqual(["Real Title"]);
   });
