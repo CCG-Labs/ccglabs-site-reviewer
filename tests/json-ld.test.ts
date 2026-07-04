@@ -66,4 +66,19 @@ describe("extractJsonLd", () => {
       parseErrors: [],
     });
   });
+
+  it("honors a case-insensitive script type attribute", () => {
+    const result = extractJsonLd(
+      `<html>${script('{"@type":"Thing"}').replace('type="application/ld+json"', 'type="APPLICATION/LD+JSON"')}</html>`,
+    );
+    expect(result.blockCount).toBe(1);
+    expect(result.entities).toEqual([{ value: { "@type": "Thing" }, blockIndex: 0 }]);
+  });
+
+  it("yields one entity with no @type for an empty object block", () => {
+    const result = extractJsonLd(`<html>${script("{}")}</html>`);
+    expect(result.blockCount).toBe(1);
+    expect(result.parseErrors).toEqual([]);
+    expect(result.entities).toEqual([{ value: {}, blockIndex: 0 }]);
+  });
 });
