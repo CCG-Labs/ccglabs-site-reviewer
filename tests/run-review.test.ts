@@ -172,6 +172,24 @@ describe("runReview", () => {
     ).toBe(true);
   });
 
+  it("surfaces malformed JSON-LD from crawled pages", async () => {
+    server = await startServer((req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(
+        '<html lang="en"><head><title>t</title><script type="application/ld+json">{broken</script></head><body>ok</body></html>',
+      );
+    });
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const seo = report.categories.find((category) => category.id === "seo");
+    const check = seo?.checks.find((entry) => entry.id === "seo.structured-data");
+    expect(check?.status).toBe("fail");
+    expect(
+      check?.findings.some(
+        (finding) => finding.severity === "error" && finding.message.includes("not valid JSON"),
+      ),
+    ).toBe(true);
+  });
+
   it("surfaces security header findings in ci and skips tls outside production", async () => {
     server = await startServer((req, res) => {
       res.setHeader("content-type", "text/html; charset=utf-8");
