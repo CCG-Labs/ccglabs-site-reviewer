@@ -229,4 +229,25 @@ describe("runReview", () => {
       reason: 'not applicable in environment "ci"',
     });
   });
+
+  it("surfaces placeholder text and image hygiene issues from crawled pages", async () => {
+    server = await startServer((req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(
+        '<html lang="en"><head><title>t</title></head><body><p>Lorem ipsum dolor sit amet.</p><img src="/logo.png"></body></html>',
+      );
+    });
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const content = report.categories.find((category) => category.id === "content");
+    const placeholders = content?.checks.find((entry) => entry.id === "content.placeholders");
+    const images = content?.checks.find((entry) => entry.id === "content.images");
+    expect(placeholders?.status).toBe("fail");
+    expect(placeholders?.findings.some((finding) => finding.message.includes("lorem ipsum"))).toBe(
+      true,
+    );
+    // content.images softens missing-alt to a warning outside production (mirrors
+    // security.headers' ci-softening precedent) — this run's environment is "ci".
+    expect(images?.status).toBe("warn");
+    expect(images?.findings.some((finding) => finding.message.includes("alt"))).toBe(true);
+  });
 });
