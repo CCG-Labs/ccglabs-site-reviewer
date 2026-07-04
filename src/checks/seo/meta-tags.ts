@@ -1,4 +1,5 @@
 import { normalizePageUrl } from "../../crawl/url.js";
+import { pageDom } from "../../crawl/page-dom.js";
 import type { Check, CheckContext, CrawledPage, Finding } from "../../types.js";
 import { extractPageMeta } from "./page-meta.js";
 
@@ -137,7 +138,7 @@ export const metaTagsCheck: Check = {
     const firstDescriptionUse = new Map<string, string>();
 
     for (const page of pages) {
-      const meta = extractPageMeta(page.body);
+      const meta = extractPageMeta(pageDom(page));
       for (const finding of pageFindings(page, meta)) record(finding);
 
       const title = meta.titles.length === 1 ? (meta.titles[0] ?? "") : "";

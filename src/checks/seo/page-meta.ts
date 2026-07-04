@@ -1,4 +1,4 @@
-import { load } from "cheerio";
+import { load, type CheerioAPI } from "cheerio";
 
 export interface PageMeta {
   titles: string[];
@@ -11,8 +11,8 @@ export interface PageMeta {
 }
 
 /** Extract the SEO-relevant head/body facts from one HTML document. */
-export function extractPageMeta(html: string): PageMeta {
-  const $ = load(html);
+export function extractPageMeta(source: string | CheerioAPI): PageMeta {
+  const $ = typeof source === "string" ? load(source) : source;
   const titles = $("head > title")
     .map((_index, element) => $(element).text().trim())
     .get();

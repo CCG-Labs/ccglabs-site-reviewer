@@ -1,4 +1,5 @@
 import { allowedOriginsFor } from "../../crawl/crawler.js";
+import { pageDom } from "../../crawl/page-dom.js";
 import { parseSitemapXml } from "../../crawl/sitemap.js";
 import { normalizePageUrl } from "../../crawl/url.js";
 import type { Check, Finding, RateLimitedFetch } from "../../types.js";
@@ -202,7 +203,7 @@ export const sitemapRobotsCheck: Check = {
       } else {
         // Header-based noindex (e.g. X-Robots-Tag on a PDF) can apply to any
         // stored entry, HTML or not; only the meta-tag/canonical checks need a body.
-        const meta = page.body !== "" ? extractPageMeta(page.body) : undefined;
+        const meta = page.body !== "" ? extractPageMeta(pageDom(page)) : undefined;
         if ((meta?.metaNoindex ?? false) || headerNoindex(page)) {
           add(
             "error",
@@ -238,7 +239,7 @@ export const sitemapRobotsCheck: Check = {
       for (const page of ctx.pages.htmlPages()) {
         if (page.status < 200 || page.status >= 300) continue;
         if (page.redirected || page.finalUrl !== page.url) continue;
-        const meta = extractPageMeta(page.body);
+        const meta = extractPageMeta(pageDom(page));
         if (meta.metaNoindex || headerNoindex(page)) continue;
         const finalKey = normalizePageUrl(page.finalUrl) ?? page.finalUrl;
         if (entrySet.has(page.url) || entrySet.has(finalKey)) continue;

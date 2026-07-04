@@ -1,4 +1,5 @@
 import { allowedOriginsFor } from "../../crawl/crawler.js";
+import { pageDom } from "../../crawl/page-dom.js";
 import { normalizePageUrl } from "../../crawl/url.js";
 import type { Check, CheckContext, CrawledPage, Finding } from "../../types.js";
 import { extractPageRefs, hasAnchorTarget } from "./link-extract.js";
@@ -94,7 +95,7 @@ export const linksCheck: Check = {
     let unverifiable = 0;
 
     for (const page of pages) {
-      const refs = extractPageRefs(page.body, page.finalUrl);
+      const refs = extractPageRefs(pageDom(page), page.finalUrl);
 
       for (const link of refs.links) {
         if (isIgnored(link.url)) continue;
@@ -121,7 +122,7 @@ export const linksCheck: Check = {
           } else if (
             link.fragment !== undefined &&
             target.body !== "" &&
-            !hasAnchorTarget(target.body, link.fragment)
+            !hasAnchorTarget(pageDom(target), link.fragment)
           ) {
             record({
               severity: "warning",

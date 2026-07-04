@@ -1,3 +1,4 @@
+import { pageDom } from "../../crawl/page-dom.js";
 import type { Check, Finding } from "../../types.js";
 import { extractJsonLd, type JsonLdEntity } from "./json-ld.js";
 
@@ -56,7 +57,7 @@ export const structuredDataCheck: Check = {
 
     let totalBlocks = 0;
     for (const page of pages) {
-      const extraction = extractJsonLd(page.body);
+      const extraction = extractJsonLd(pageDom(page));
       totalBlocks += extraction.blockCount;
 
       for (const parseError of extraction.parseErrors) {
