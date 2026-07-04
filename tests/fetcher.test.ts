@@ -170,6 +170,48 @@ describe("createFetcher", () => {
     // MAX_REDIRECTS (5) + 1 initial request = 6 hops for a single attempt; retrying would double it.
     expect(calls).toBe(6);
   });
+
+  it("sends configured headers only to trusted origins when trustedOrigins is set", async () => {
+    let seenAuth: string | undefined = "unset";
+    server = await startServer((req, res) => {
+      seenAuth = req.headers["x-staging-token"] as string | undefined;
+      res.end("ok");
+    });
+    const trusted = createFetcher({
+      requestHeaders: { "x-staging-token": "s3cret" },
+      trustedOrigins: new Set([new URL(server.url).origin]),
+    });
+    await trusted(server.url);
+    expect(seenAuth).toBe("s3cret");
+
+    const untrusted = createFetcher({
+      requestHeaders: { "x-staging-token": "s3cret" },
+      trustedOrigins: new Set(["https://elsewhere.invalid"]),
+    });
+    await untrusted(server.url);
+    expect(seenAuth).toBeUndefined();
+  });
+
+  it("keeps sending headers on same-origin redirect hops", async () => {
+    const seen: Array<string | undefined> = [];
+    server = await startServer((req, res) => {
+      seen.push(req.headers["x-staging-token"] as string | undefined);
+      if (req.url === "/start") {
+        res.statusCode = 302;
+        res.setHeader("location", "/end");
+        res.end();
+        return;
+      }
+      res.end("done");
+    });
+    const fetcher = createFetcher({
+      requestHeaders: { "x-staging-token": "s3cret" },
+      trustedOrigins: new Set([new URL(server.url).origin]),
+    });
+    const result = await fetcher(`${server.url}/start`);
+    expect(result.body).toBe("done");
+    expect(seen).toEqual(["s3cret", "s3cret"]);
+  });
 });
 
 describe("isFollowableRedirect", () => {

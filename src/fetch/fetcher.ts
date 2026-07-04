@@ -5,6 +5,11 @@ export interface FetcherOptions {
   timeoutMs?: number;
   maxBodyBytes?: number;
   maxConcurrent?: number;
+  /**
+   * When set, configured requestHeaders are attached only to requests whose
+   * target origin is in this set — never to third-party hosts.
+   */
+  trustedOrigins?: ReadonlySet<string>;
 }
 
 export class SiteUnreachableError extends Error {}
@@ -63,6 +68,7 @@ export function createFetcher(options: FetcherOptions = {}): RateLimitedFetch {
     timeoutMs = 15_000,
     maxBodyBytes = 5 * 1024 * 1024,
     maxConcurrent = 5,
+    trustedOrigins,
   } = options;
 
   let active = 0;
@@ -94,9 +100,13 @@ export function createFetcher(options: FetcherOptions = {}): RateLimitedFetch {
       if (hop > MAX_REDIRECTS) {
         throw new TooManyRedirectsError(`Too many redirects: ${url}`);
       }
+      const hopHeaders =
+        trustedOrigins === undefined || trustedOrigins.has(new URL(currentUrl).origin)
+          ? requestHeaders
+          : {};
       const response = await fetch(currentUrl, {
         method,
-        headers: requestHeaders,
+        headers: hopHeaders,
         redirect: "manual",
         signal: AbortSignal.timeout(timeoutMs),
       });
