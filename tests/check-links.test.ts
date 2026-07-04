@@ -193,4 +193,67 @@ describe("functionality.links", () => {
     expect(outcome).toEqual({ score: 100, findings: [] });
     expect(log).toHaveLength(0);
   });
+
+  it("warns on broken external links in production, attributed to the referencing page", async () => {
+    const outcome = await linksCheck.run(
+      contextFor(
+        [
+          {
+            url: "https://example.com/",
+            body: html(
+              '<a href="https://ext.example/dead">e</a><a href="https://ext.example/alive">a</a>',
+            ),
+          },
+        ],
+        fetchStub({ "https://ext.example/dead": 404, "https://ext.example/alive": 200 }),
+        "production",
+      ),
+    );
+    expect(outcome.score).toBe(100); // warnings never reduce score
+    expect(outcome.findings).toHaveLength(1);
+    expect(outcome.findings[0]?.severity).toBe("warning");
+    expect(outcome.findings[0]?.message).toContain("https://ext.example/dead");
+    expect(outcome.findings[0]?.url).toBe("https://example.com/");
+  });
+
+  it("treats external 403/429 as bot protection, not breakage", async () => {
+    const outcome = await linksCheck.run(
+      contextFor(
+        [{ url: "https://example.com/", body: html('<a href="https://ext.example/waf">w</a>') }],
+        fetchStub({ "https://ext.example/waf": 403 }),
+        "production",
+      ),
+    );
+    expect(outcome).toEqual({ score: 100, findings: [] });
+  });
+
+  it("caps external probing at 50 unique URLs", async () => {
+    const log: string[] = [];
+    const body = html(
+      Array.from(
+        { length: 60 },
+        (_v, i) => `<a href="https://ext.example/p${String(i)}">x</a>`,
+      ).join(""),
+    );
+    const routes: Record<string, number> = {};
+    for (let i = 0; i < 60; i += 1) routes[`https://ext.example/p${String(i)}`] = 200;
+    await linksCheck.run(
+      contextFor([{ url: "https://example.com/", body }], fetchStub(routes, log), "production"),
+    );
+    expect(log).toHaveLength(50);
+  });
+
+  it("warns when an external link is unreachable in production", async () => {
+    const outcome = await linksCheck.run(
+      contextFor(
+        [{ url: "https://example.com/", body: html('<a href="https://ext.example/down">d</a>') }],
+        fetchStub({ "https://ext.example/down": "reject" }),
+        "production",
+      ),
+    );
+    expect(outcome.score).toBe(100);
+    expect(outcome.findings).toHaveLength(1);
+    expect(outcome.findings[0]?.severity).toBe("warning");
+    expect(outcome.findings[0]?.message).toContain("unreachable");
+  });
 });
