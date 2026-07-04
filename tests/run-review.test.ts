@@ -190,6 +190,29 @@ describe("runReview", () => {
     ).toBe(true);
   });
 
+  it("surfaces broken og:image from crawled pages", async () => {
+    server = await startServer((req, res) => {
+      if (req.url === "/share.png") {
+        res.statusCode = 404;
+        res.end("gone");
+        return;
+      }
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(
+        `<html lang="en"><head><title>t</title><meta property="og:title" content="T"><meta property="og:image" content="${server?.url ?? ""}/share.png"></head><body>ok</body></html>`,
+      );
+    });
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const seo = report.categories.find((category) => category.id === "seo");
+    const check = seo?.checks.find((entry) => entry.id === "seo.social-meta");
+    expect(check?.status).toBe("fail");
+    expect(
+      check?.findings.some(
+        (finding) => finding.severity === "error" && finding.message.includes("/share.png"),
+      ),
+    ).toBe(true);
+  });
+
   it("surfaces security header findings in ci and skips tls outside production", async () => {
     server = await startServer((req, res) => {
       res.setHeader("content-type", "text/html; charset=utf-8");

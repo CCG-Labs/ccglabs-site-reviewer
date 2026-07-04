@@ -189,4 +189,44 @@ describe("seo.social-meta", () => {
     const outcome = await socialMetaCheck.run(contextFor([]));
     expect(outcome).toEqual({ score: 100, findings: [] });
   });
+
+  it("detects og:image via og:image:url fallback when og:image is missing", async () => {
+    const outcome = await socialMetaCheck.run(
+      contextFor(
+        [
+          {
+            url: "https://example.com/",
+            body: html(`
+              <meta property="og:title" content="Title">
+              <meta property="og:description" content="Description">
+              <meta property="og:image:url" content="https://example.com/img/share.png">
+              <meta property="og:url" content="https://example.com/">
+              <meta name="twitter:card" content="summary_large_image">
+            `),
+          },
+        ],
+        fetchStub({ "https://example.com/img/share.png": [200, "image/png"] }),
+      ),
+    );
+    expect(outcome).toEqual({ score: 100, findings: [] });
+  });
+
+  it("detects twitter:card via property form when name form is missing", async () => {
+    const outcome = await socialMetaCheck.run(
+      contextFor([
+        {
+          url: "https://example.com/",
+          body: html(`
+            <meta property="og:title" content="Title">
+            <meta property="og:description" content="Description">
+            <meta property="og:image" content="https://example.com/img/share.png">
+            <meta property="og:url" content="https://example.com/">
+            <meta property="twitter:card" content="summary_large_image">
+          `),
+        },
+      ]),
+    );
+    const findings = outcome.findings.filter((f) => f.message.includes("twitter:card"));
+    expect(findings).toHaveLength(0);
+  });
 });
