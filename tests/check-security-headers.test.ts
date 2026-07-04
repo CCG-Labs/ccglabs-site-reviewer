@@ -17,8 +17,9 @@ const contextFor = (
   fetchImpl: CheckContext["fetch"] = () => Promise.reject(new Error("no fetch in this test")),
   environment: Environment = "production",
   checks: ResolvedConfig["checks"] = {},
+  baseUrl = "https://example.com",
 ): CheckContext => ({
-  baseUrl: "https://example.com",
+  baseUrl,
   environment,
   config: {
     environment,
@@ -124,6 +125,12 @@ describe("security.headers", () => {
       expect(warnings.some((issue) => issue.message.includes("nginx/1.25.3"))).toBe(true);
       expect(warnings).toHaveLength(3);
     });
+
+    it("tolerates a duplicated x-content-type-options header value", () => {
+      const headers = { ...HARDENED_HEADERS, "x-content-type-options": "nosniff, nosniff" };
+      const issues = analyzeHeaders(headers, { https: true });
+      expect(issues.some((issue) => issue.message.includes("X-Content-Type-Options"))).toBe(false);
+    });
   });
 
   describe("securityHeadersCheck", () => {
@@ -185,6 +192,46 @@ describe("security.headers", () => {
     it("returns a clean pass when the page store is empty", async () => {
       const outcome = await securityHeadersCheck.run(contextFor([]));
       expect(outcome).toEqual({ score: 100, findings: [] });
+    });
+
+    it("downgrades error findings to warnings in ci", async () => {
+      const outcome = await securityHeadersCheck.run(
+        contextFor(
+          [{ url: "http://example.com/", headers: {} }],
+          undefined,
+          "ci",
+          {},
+          "http://example.com",
+        ),
+      );
+      expect(outcome.findings.length).toBeGreaterThan(0);
+      expect(outcome.findings.every((finding) => finding.severity !== "error")).toBe(true);
+      const ctoFinding = outcome.findings.find((finding) =>
+        finding.message.includes("X-Content-Type-Options"),
+      );
+      expect(ctoFinding).toBeDefined();
+      expect(ctoFinding?.severity).toBe("warning");
+      expect(ctoFinding?.recommendation).toContain(
+        "reported as a warning in ci; this is an error in production.",
+      );
+      expect(outcome.score).toBe(Math.max(0, 100 - 5 * outcome.findings.length));
+    });
+
+    it("keeps error severity for the same missing headers in production", async () => {
+      const outcome = await securityHeadersCheck.run(
+        contextFor(
+          [{ url: "http://example.com/", headers: {} }],
+          undefined,
+          "production",
+          {},
+          "http://example.com",
+        ),
+      );
+      const ctoFinding = outcome.findings.find((finding) =>
+        finding.message.includes("X-Content-Type-Options"),
+      );
+      expect(ctoFinding).toBeDefined();
+      expect(ctoFinding?.severity).toBe("error");
     });
   });
 });
