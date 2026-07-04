@@ -30,8 +30,6 @@ export function extractSocialMeta($: CheerioAPI): SocialMeta {
   };
 }
 
-const isAbsoluteHttp = (value: string): boolean => /^https?:\/\//i.test(value);
-
 type ProbeResult =
   { kind: "status"; status: number; contentType: string } | { kind: "unreachable" };
 
@@ -77,7 +75,10 @@ export const socialMetaCheck: Check = {
       return result;
     };
 
-    /** og:image URL → first page that referenced it, split by origin trust */
+    /**
+     * og:image URL → first page that referenced it, split by origin trust.
+     * Probe volume is bounded by maxPages (one og:image per page via .first()).
+     */
     const internalImages = new Map<string, string>();
     const externalImages = new Map<string, string>();
 
@@ -116,7 +117,13 @@ export const socialMetaCheck: Check = {
         });
       }
       if (meta.ogImage !== undefined) {
-        if (!isAbsoluteHttp(meta.ogImage)) {
+        let parsed: URL | undefined;
+        try {
+          parsed = new URL(meta.ogImage);
+        } catch {
+          parsed = undefined;
+        }
+        if (parsed === undefined || !/^https?:$/.test(parsed.protocol)) {
           record({
             severity: "warning",
             url: page.url,
@@ -125,9 +132,7 @@ export const socialMetaCheck: Check = {
               "Use a fully-qualified https URL — platforms do not resolve relative og:image values.",
           });
         } else {
-          const target = allowedOrigins.has(new URL(meta.ogImage).origin)
-            ? internalImages
-            : externalImages;
+          const target = allowedOrigins.has(parsed.origin) ? internalImages : externalImages;
           if (!target.has(meta.ogImage)) target.set(meta.ogImage, page.url);
         }
       }

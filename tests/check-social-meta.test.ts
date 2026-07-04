@@ -116,6 +116,21 @@ describe("seo.social-meta", () => {
     expect(log).toHaveLength(0);
   });
 
+  it("warns on a malformed og:image (bare scheme) instead of crashing", async () => {
+    const log: string[] = [];
+    const outcome = await socialMetaCheck.run(
+      contextFor(
+        [{ url: "https://example.com/", body: html(fullOgHead("https://")) }],
+        fetchStub({}, log),
+      ),
+    );
+    const warnings = outcome.findings.filter((finding) => finding.severity === "warning");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.message).toContain("not an absolute URL");
+    expect(outcome.score).toBe(100);
+    expect(log).toHaveLength(0);
+  });
+
   it("errors on a same-origin og:image that 404s and dirties the page score", async () => {
     const outcome = await socialMetaCheck.run(
       contextFor(
@@ -213,20 +228,22 @@ describe("seo.social-meta", () => {
 
   it("detects twitter:card via property form when name form is missing", async () => {
     const outcome = await socialMetaCheck.run(
-      contextFor([
-        {
-          url: "https://example.com/",
-          body: html(`
+      contextFor(
+        [
+          {
+            url: "https://example.com/",
+            body: html(`
             <meta property="og:title" content="Title">
             <meta property="og:description" content="Description">
             <meta property="og:image" content="https://example.com/img/share.png">
             <meta property="og:url" content="https://example.com/">
             <meta property="twitter:card" content="summary_large_image">
           `),
-        },
-      ]),
+          },
+        ],
+        fetchStub({ "https://example.com/img/share.png": [200, "image/png"] }),
+      ),
     );
-    const findings = outcome.findings.filter((f) => f.message.includes("twitter:card"));
-    expect(findings).toHaveLength(0);
+    expect(outcome).toEqual({ score: 100, findings: [] });
   });
 });
