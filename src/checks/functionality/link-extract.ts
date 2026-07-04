@@ -1,4 +1,4 @@
-import { load } from "cheerio";
+import { load, type CheerioAPI } from "cheerio";
 import { normalizePageUrl } from "../../crawl/url.js";
 
 export interface PageLink {
@@ -29,8 +29,8 @@ function parseSrcset(value: string): string[] {
 }
 
 /** Extract every anchor link (fragment preserved) and asset reference from one HTML page. */
-export function extractPageRefs(html: string, pageUrl: string): PageRefs {
-  const $ = load(html);
+export function extractPageRefs(source: string | CheerioAPI, pageUrl: string): PageRefs {
+  const $ = typeof source === "string" ? load(source) : source;
 
   const links = new Map<string, PageLink>();
   $("a[href]").each((_index, element) => {
@@ -73,9 +73,9 @@ export function extractPageRefs(html: string, pageUrl: string): PageRefs {
 }
 
 /** True when the fragment resolves to an element on the page (id or legacy a[name]). */
-export function hasAnchorTarget(html: string, fragment: string): boolean {
+export function hasAnchorTarget(source: string | CheerioAPI, fragment: string): boolean {
   if (fragment === "" || fragment === "top") return true;
-  const $ = load(html);
+  const $ = typeof source === "string" ? load(source) : source;
   const idMatch = $("[id]")
     .toArray()
     .some((element) => $(element).attr("id") === fragment);

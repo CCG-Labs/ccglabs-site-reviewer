@@ -1,5 +1,6 @@
-import { load } from "cheerio";
+import { load, type CheerioAPI } from "cheerio";
 import type { Check, Finding } from "../../types.js";
+import { pageDom } from "../../crawl/page-dom.js";
 import { inspectCertificate } from "./tls-probe.js";
 
 const EXPIRY_WARNING_DAYS = 30;
@@ -38,8 +39,8 @@ export function certExpiryFindings(validTo: Date, now: Date): TlsIssue[] {
 }
 
 /** Raw http:// resource references on a page — blocked/flagged by browsers on https pages. */
-export function findMixedContent(html: string): string[] {
-  const $ = load(html);
+export function findMixedContent(source: string | CheerioAPI): string[] {
+  const $ = typeof source === "string" ? load(source) : source;
   const offenders = new Set<string>();
   const consider = (value: string | undefined): void => {
     if (value !== undefined && value.trim().toLowerCase().startsWith("http://")) {
@@ -118,7 +119,7 @@ export const securityTlsCheck: Check = {
     for (const page of ctx.pages.htmlPages()) {
       if (page.status < 200 || page.status >= 300) continue;
       if (new URL(page.finalUrl).protocol !== "https:") continue;
-      const offenders = findMixedContent(page.body);
+      const offenders = findMixedContent(pageDom(page));
       if (offenders.length > 0) {
         const sample = offenders.slice(0, MIXED_CONTENT_SAMPLE).join(", ");
         findings.push({

@@ -1,4 +1,4 @@
-import { load } from "cheerio";
+import { load, type CheerioAPI } from "cheerio";
 
 export interface JsonLdEntity {
   /** raw parsed object (post-flattening) */
@@ -36,8 +36,8 @@ function flatten(parsed: unknown, blockIndex: number): JsonLdEntity[] {
 }
 
 /** Extract and JSON.parse every JSON-LD block. Never evaluates content. */
-export function extractJsonLd(html: string): JsonLdExtraction {
-  const $ = load(html);
+export function extractJsonLd(source: string | CheerioAPI): JsonLdExtraction {
+  const $ = typeof source === "string" ? load(source) : source;
   const extraction: JsonLdExtraction = { blockCount: 0, entities: [], parseErrors: [] };
   $('script[type="application/ld+json" i]').each((_index, element) => {
     const blockIndex = extraction.blockCount;

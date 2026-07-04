@@ -57,6 +57,7 @@ separately reports what search engines will and won't be allowed to crawl.
 | `seo.meta-tags`                | one good title/description/canonical/h1/lang per page; titles unique site-wide; no stray `noindex` (error in production, warning in ci)                      |
 | `seo.sitemap-robots`           | sitemap.xml exists and lists only live, canonical, indexable, robots-allowed URLs; crawled pages appear in it; robots.txt is sane and references the sitemap |
 | `seo.structured-data`          | JSON-LD parses, declares @type, and carries required properties per schema.org type; flags conflicting singletons and site-wide absence                      |
+| `seo.social-meta`              | Open Graph/Twitter tags present per page; og:image is absolute, resolves, and is an image (external images probed in production only)                        |
 | `security.headers`             | OWASP security headers present with sane values, including on error responses (error in production, warning in ci)                                           |
 | `security.tls`                 | https enforced, certificate valid and >30 days from expiry, no mixed content (production only)                                                               |
 
