@@ -313,4 +313,27 @@ describe("runReview", () => {
     expect(check?.status).toBe("fail");
     expect(check?.findings.some((f) => f.severity === "error")).toBe(true);
   }, 30_000);
+
+  it("completes the run and keeps fetch-tier checks when the browser fails to launch", async () => {
+    server = await startServer((_req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
+    });
+    const report = await runReview({
+      url: server.url,
+      environment: "ci",
+      browserCapability: true,
+      browserDriverFactory: () => Promise.reject(new Error("Chromium failed to launch")),
+    });
+    // fetch-tier checks are still present and the report is fully produced
+    expect(
+      report.categories.some((c) =>
+        c.checks.some((check) => check.id === "functionality.reachable"),
+      ),
+    ).toBe(true);
+    const consoleErrorsCheck = report.categories
+      .find((c) => c.id === "functionality")
+      ?.checks.find((e) => e.id === "functionality.console-errors");
+    expect(consoleErrorsCheck?.status).toBe("error");
+  });
 });

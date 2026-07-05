@@ -22,8 +22,8 @@
     "dist"
   ],
   "peerDependencies": {
-    "playwright": "*",
-    "lighthouse": "*"
+    "playwright": ">=1.40.0 <2",
+    "lighthouse": ">=11 <13"
   },
   "peerDependenciesMeta": {
     "playwright": {

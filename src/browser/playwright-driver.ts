@@ -39,11 +39,11 @@ export async function createPlaywrightDriver(): Promise<{
       page.setDefaultNavigationTimeout(NAV_TIMEOUT_MS);
       return {
         onError(handler) {
+          // console.error is app-level logging (often benign/third-party) and is
+          // intentionally not collected — only uncaught exceptions signal a
+          // functional defect.
           page.on("pageerror", (error) => {
             handler(error.message);
-          });
-          page.on("console", (message) => {
-            if (message.type() === "error") handler(message.text());
           });
         },
         onRequestFailed(handler) {

@@ -27,6 +27,8 @@ export interface RunReviewOptions {
   cliConfig?: SiteReviewConfig;
   /** test-only: bypass the capability probe */
   browserCapability?: boolean;
+  /** test-only: inject a driver factory instead of the real createPlaywrightDriver (e.g. to simulate launch failure) */
+  browserDriverFactory?: () => ReturnType<typeof createPlaywrightDriver>;
 }
 
 export async function runReview(options: RunReviewOptions): Promise<ReviewReport> {
@@ -64,7 +66,7 @@ export async function runReview(options: RunReviewOptions): Promise<ReviewReport
 
   const browserAvailable = options.browserCapability ?? (await probeBrowserCapability());
   const lazyBrowser = browserAvailable
-    ? createLazyBrowser(() => createPlaywrightDriver())
+    ? createLazyBrowser(options.browserDriverFactory ?? (() => createPlaywrightDriver()))
     : undefined;
 
   const allChecks = [...builtinChecks, ...config.customChecks].map((check) =>

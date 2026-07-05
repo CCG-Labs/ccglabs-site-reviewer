@@ -40,9 +40,16 @@ export function createLazyBrowser(driverFactory: () => Promise<Driver>): {
     },
     async teardown(): Promise<void> {
       if (driver === undefined) return;
-      const resolved = await driver;
+      const pending = driver;
       driver = undefined;
-      teardownPromise ??= resolved.teardown();
+      teardownPromise ??= (async () => {
+        try {
+          const resolved = await pending;
+          await resolved.teardown();
+        } catch {
+          // launch failed or close failed; nothing to clean up either way
+        }
+      })();
       await teardownPromise;
     },
   };

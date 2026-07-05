@@ -54,4 +54,10 @@ describe("createLazyBrowser", () => {
     await Promise.all([lazy.teardown(), lazy.teardown()]);
     expect(teardown).toHaveBeenCalledTimes(1);
   });
+
+  it("teardown is best-effort when the browser launch itself failed", async () => {
+    const lazy = createLazyBrowser(() => Promise.reject(new Error("launch failed")));
+    await expect(lazy.provider.newPage()).rejects.toThrow("launch failed");
+    await expect(lazy.teardown()).resolves.toBeUndefined();
+  });
 });
