@@ -281,4 +281,59 @@ describe("runReview", () => {
         ?.findings.some((finding) => finding.message.includes("/.env")),
     ).toBe(true);
   });
+
+  it("skips browser checks (with the extras hint) when playwright is not injected", async () => {
+    server = await startServer((_req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
+    });
+    // In the fast test path, the real capability probe finds playwright as a
+    // devDependency — so force the unavailable path via a test-only override.
+    const report = await runReview({
+      url: server.url,
+      environment: "ci",
+      browserCapability: false,
+    });
+    expect(report.skipped.some((skip) => skip.id === "functionality.console-errors")).toBe(true);
+  });
+
+  it("surfaces console errors end-to-end when a browser is available", async () => {
+    const { probeBrowserCapability } = await import("../src/browser/lazy-browser.js");
+    if (!(await probeBrowserCapability())) return; // skip on a lean checkout
+    server = await startServer((_req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(
+        '<html lang="en"><head><title>t</title></head><body><script>undefinedFn()</script></body></html>',
+      );
+    });
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const check = report.categories
+      .find((c) => c.id === "functionality")
+      ?.checks.find((e) => e.id === "functionality.console-errors");
+    expect(check?.status).toBe("fail");
+    expect(check?.findings.some((f) => f.severity === "error")).toBe(true);
+  }, 30_000);
+
+  it("completes the run and keeps fetch-tier checks when the browser fails to launch", async () => {
+    server = await startServer((_req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
+    });
+    const report = await runReview({
+      url: server.url,
+      environment: "ci",
+      browserCapability: true,
+      browserDriverFactory: () => Promise.reject(new Error("Chromium failed to launch")),
+    });
+    // fetch-tier checks are still present and the report is fully produced
+    expect(
+      report.categories.some((c) =>
+        c.checks.some((check) => check.id === "functionality.reachable"),
+      ),
+    ).toBe(true);
+    const consoleErrorsCheck = report.categories
+      .find((c) => c.id === "functionality")
+      ?.checks.find((e) => e.id === "functionality.console-errors");
+    expect(consoleErrorsCheck?.status).toBe("error");
+  });
 });

@@ -61,6 +61,7 @@ separately reports what search engines will and won't be allowed to crawl.
 | `content.placeholders`         | no lorem ipsum, unrendered `{{templates}}`, stray `undefined`/`NaN` (errors) or TODO/FIXME (warnings) in visible text                                                                                 |
 | `content.images`               | images carry alt text (error in production, warning elsewhere) and width/height (warning); image files probed for oversize — same-origin always, cross-origin in production (warning, 500 KB default) |
 | `functionality.error-pages`    | nonexistent URLs return a real 404 (soft-200 is an error, redirect a warning); optional branded-404 marker check                                                                                      |
+| `functionality.console-errors` | pages load with no uncaught JS errors (error) or failed resource requests (warning) — needs the browser extras                                                                                        |
 | `security.sensitive-files`     | probes for publicly accessible `.env`, `.git`, backups, key files (ci + production)                                                                                                                   |
 | `security.headers`             | OWASP security headers present with sane values, including on error responses (error in production, warning in ci)                                                                                    |
 | `security.tls`                 | https enforced, certificate valid and >30 days from expiry, no mixed content (production only)                                                                                                        |
@@ -81,6 +82,21 @@ export default defineConfig({
 ```
 
 Internal asset probing caps at 500 unique URLs per run, external at 50; overflow is logged in debug output.
+
+## Browser checks (optional)
+
+Checks that need a real browser (`functionality.console-errors`, and — in later
+releases — accessibility, Lighthouse, and analytics) are **off by default** to
+keep the base install lean. Enable them by installing the browser extras:
+
+```bash
+npm i -D playwright lighthouse
+npx playwright install chromium
+```
+
+Without them, these checks appear in the report's `skipped` list with the exact
+command to enable them. Configure how many crawled pages they sample with
+`browserSampleSize` (default 5; 0 = base URL only).
 
 ## Configuration
 

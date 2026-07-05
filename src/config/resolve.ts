@@ -4,6 +4,7 @@ export const DEFAULTS = {
   environment: "local" as Environment,
   maxPages: 200,
   failThreshold: 80,
+  browserSampleSize: 5,
 };
 
 function mergeLayer(base: ResolvedConfig, layer: SiteReviewConfig | undefined): ResolvedConfig {
@@ -17,6 +18,7 @@ function mergeLayer(base: ResolvedConfig, layer: SiteReviewConfig | undefined): 
     ...base,
     ...(layer.maxPages !== undefined && { maxPages: layer.maxPages }),
     ...(layer.failThreshold !== undefined && { failThreshold: layer.failThreshold }),
+    ...(layer.browserSampleSize !== undefined && { browserSampleSize: layer.browserSampleSize }),
     ...(layer.requestHeaders !== undefined && { requestHeaders: layer.requestHeaders }),
     checks,
     customChecks: [...base.customChecks, ...(layer.customChecks ?? [])],
@@ -38,6 +40,7 @@ export function resolveConfig(layers: {
     environment,
     maxPages: DEFAULTS.maxPages,
     failThreshold: DEFAULTS.failThreshold,
+    browserSampleSize: DEFAULTS.browserSampleSize,
     requestHeaders: {},
     checks: {},
     customChecks: [],

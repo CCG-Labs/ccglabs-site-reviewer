@@ -1,5 +1,6 @@
 import { imagesCheck } from "../checks/content/images.js";
 import { placeholdersCheck } from "../checks/content/placeholders.js";
+import { consoleErrorsCheck } from "../checks/functionality/console-errors.js";
 import { crawlCoverageCheck } from "../checks/functionality/crawl-coverage.js";
 import { errorPagesCheck } from "../checks/functionality/error-pages.js";
 import { linksCheck } from "../checks/functionality/links.js";
@@ -17,6 +18,7 @@ export const builtinChecks: Check[] = [
   reachableCheck,
   crawlCoverageCheck,
   errorPagesCheck,
+  consoleErrorsCheck,
   linksCheck,
   metaTagsCheck,
   sitemapRobotsCheck,

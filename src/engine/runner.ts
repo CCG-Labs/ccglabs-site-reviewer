@@ -9,16 +9,22 @@ export interface ExecutedCheck {
   debug: Array<{ message: string; data?: unknown }>;
 }
 
+const BROWSER_EXTRAS_HINT =
+  "requires the browser extras — run: npm i -D playwright lighthouse && npx playwright install chromium";
+
 export function partitionChecks(
   checks: Check[],
   environment: Environment,
   overrides: Record<string, CheckOverride>,
+  browserAvailable = true,
 ): { toRun: Check[]; skipped: Array<{ id: string; reason: string }> } {
   const toRun: Check[] = [];
   const skipped: Array<{ id: string; reason: string }> = [];
   for (const check of checks) {
     if (overrides[check.id]?.enabled === false) {
       skipped.push({ id: check.id, reason: "disabled by config" });
+    } else if (check.requires === "browser" && !browserAvailable) {
+      skipped.push({ id: check.id, reason: BROWSER_EXTRAS_HINT });
     } else if (!check.environments.includes(environment)) {
       skipped.push({ id: check.id, reason: `not applicable in environment "${environment}"` });
     } else {

@@ -16,6 +16,7 @@ const configWith = (checks: Record<string, CheckOverride> = {}): ResolvedConfig 
   environment: "local",
   maxPages: 200,
   failThreshold: 80,
+  browserSampleSize: 5,
   requestHeaders: {},
   checks,
   customChecks: [],

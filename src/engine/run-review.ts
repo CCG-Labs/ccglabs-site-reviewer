@@ -1,4 +1,6 @@
 import packageJson from "../../package.json" with { type: "json" };
+import { createLazyBrowser, probeBrowserCapability } from "../browser/lazy-browser.js";
+import { createPlaywrightDriver } from "../browser/playwright-driver.js";
 import { resolveConfig } from "../config/resolve.js";
 import { allowedOriginsFor, crawlSite } from "../crawl/crawler.js";
 import { createFetcher, SiteUnreachableError } from "../fetch/fetcher.js";
@@ -23,6 +25,10 @@ export interface RunReviewOptions {
   configFile?: SiteReviewConfig;
   /** CLI-flag layer; wins over everything */
   cliConfig?: SiteReviewConfig;
+  /** test-only: bypass the capability probe */
+  browserCapability?: boolean;
+  /** test-only: inject a driver factory instead of the real createPlaywrightDriver (e.g. to simulate launch failure) */
+  browserDriverFactory?: () => ReturnType<typeof createPlaywrightDriver>;
 }
 
 export async function runReview(options: RunReviewOptions): Promise<ReviewReport> {
@@ -58,17 +64,33 @@ export async function runReview(options: RunReviewOptions): Promise<ReviewReport
     maxPages: config.maxPages,
   });
 
+  const browserAvailable = options.browserCapability ?? (await probeBrowserCapability());
+  const lazyBrowser = browserAvailable
+    ? createLazyBrowser(options.browserDriverFactory ?? (() => createPlaywrightDriver()))
+    : undefined;
+
   const allChecks = [...builtinChecks, ...config.customChecks].map((check) =>
     applyOverride(check, config.checks[check.id]),
   );
-  const { toRun, skipped } = partitionChecks(allChecks, config.environment, config.checks);
-  const executed = await runChecks(toRun, {
-    baseUrl: options.url,
-    environment: config.environment,
-    config,
-    pages,
-    fetch: fetchFn,
-  });
+  const { toRun, skipped } = partitionChecks(
+    allChecks,
+    config.environment,
+    config.checks,
+    browserAvailable,
+  );
+  let executed: ExecutedCheck[];
+  try {
+    executed = await runChecks(toRun, {
+      baseUrl: options.url,
+      environment: config.environment,
+      config,
+      pages,
+      fetch: fetchFn,
+      browser: lazyBrowser?.provider,
+    });
+  } finally {
+    await lazyBrowser?.teardown();
+  }
 
   const byCategory = new Map<CategoryId, ExecutedCheck[]>();
   for (const result of executed) {

@@ -7,6 +7,7 @@ describe("resolveConfig", () => {
       environment: "local",
       maxPages: 200,
       failThreshold: 80,
+      browserSampleSize: 5,
       requestHeaders: {},
       checks: {},
       customChecks: [],
@@ -58,5 +59,16 @@ describe("resolveConfig", () => {
       api: { customChecks: [makeCheck("b")] },
     });
     expect(config.customChecks.map((c) => c.id)).toEqual(["a", "b"]);
+  });
+
+  it("uses browserSampleSize default of 5 and allows layer override", () => {
+    const defaultConfig = resolveConfig({});
+    expect(defaultConfig.browserSampleSize).toBe(5);
+
+    const overrideConfig = resolveConfig({
+      file: { browserSampleSize: 10 },
+      cli: { browserSampleSize: 3 },
+    });
+    expect(overrideConfig.browserSampleSize).toBe(3);
   });
 });
