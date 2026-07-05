@@ -27,15 +27,17 @@ export const errorPagesCheck: Check = {
 
     let status: number;
     let body: string;
+    let redirected: boolean;
     try {
       const response = await ctx.fetch(probeUrl);
       status = response.status;
       body = response.body;
+      redirected = response.redirected;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       ctx.logger.debug("404 probe failed", { message });
       return {
-        score: 95,
+        score: 100 - WARNING_COST,
         findings: [
           {
             severity: "warning",
@@ -47,7 +49,14 @@ export const errorPagesCheck: Check = {
       };
     }
 
-    if (status === 200) {
+    if (status === 200 && redirected) {
+      findings.push({
+        severity: "warning",
+        url: probeUrl,
+        message: "A nonexistent URL redirects to an existing page instead of returning 404.",
+        recommendation: "Return a 404 for missing pages rather than redirecting to the homepage.",
+      });
+    } else if (status === 200) {
       findings.push({
         severity: "error",
         url: probeUrl,

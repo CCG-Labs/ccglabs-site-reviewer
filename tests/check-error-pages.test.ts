@@ -67,6 +67,22 @@ describe("functionality.error-pages", () => {
     expect(outcome.findings[0]?.message).toContain("302");
   });
 
+  it("warns (not errors) when unknown paths redirect same-origin to the homepage", async () => {
+    server = await startServer((req, res) => {
+      if (req.url === "/") {
+        res.end("<html><body>home</body></html>");
+        return;
+      }
+      res.writeHead(302, { Location: "/" });
+      res.end();
+    });
+    const outcome = await errorPagesCheck.run(contextFor(server.url));
+    expect(outcome.score).toBe(95);
+    expect(outcome.findings).toHaveLength(1);
+    expect(outcome.findings[0]?.severity).toBe("warning");
+    expect(outcome.findings[0]?.message).toContain("redirect");
+  });
+
   it("passes when the 404 body contains the configured marker", async () => {
     server = await startServer((_req, res) => {
       res.statusCode = 404;

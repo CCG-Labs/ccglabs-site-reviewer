@@ -71,14 +71,19 @@ export const sensitiveFilesCheck: Check = {
     const origin = new URL(ctx.baseUrl).origin;
     const findings: Finding[] = [];
 
-    // Only probe origin-relative entries — an absolute URL in `paths`/
-    // `additionalPaths` would make new URL(path, origin) target a third-party
-    // host, turning misconfiguration into requests we should never send.
-    // A leading "//" is protocol-relative (e.g. "//evil.example/x") and also
-    // resolves to a third-party host, so it must be rejected too.
+    // Only probe entries that resolve to the site's own origin. A string-prefix
+    // check (e.g. path.startsWith("/")) is not enough: WHATWG URL parsing
+    // normalizes backslashes to slashes and strips tabs/newlines, so entries
+    // like "/\\evil.example/x" or "/\t/evil" look origin-relative as strings
+    // but resolve OFF-origin once parsed. Validate the actual resolved origin
+    // instead of trusting the raw string.
     const relativePaths = options.paths.filter((path) => {
-      if (path.startsWith("/") && !path.startsWith("//")) return true;
-      ctx.logger.debug("Skipping non-relative sensitive-file path entry", { path });
+      try {
+        if (new URL(path, origin).origin === origin) return true;
+      } catch {
+        /* unparseable → skip */
+      }
+      ctx.logger.debug("Skipping non-origin sensitive-file path entry", { path });
       return false;
     });
 
