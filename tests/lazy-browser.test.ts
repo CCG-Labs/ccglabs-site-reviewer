@@ -54,13 +54,4 @@ describe("createLazyBrowser", () => {
     await Promise.all([lazy.teardown(), lazy.teardown()]);
     expect(teardown).toHaveBeenCalledTimes(1);
   });
-
-  it("cdpEndpoint triggers the lazy launch", async () => {
-    const factory = vi.fn(() =>
-      Promise.resolve({ provider: fakeBrowser({}), teardown: () => Promise.resolve() }),
-    );
-    const lazy = createLazyBrowser(factory);
-    await lazy.provider.cdpEndpoint();
-    expect(factory).toHaveBeenCalledTimes(1);
-  });
 });

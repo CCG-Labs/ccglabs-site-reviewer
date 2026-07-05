@@ -37,9 +37,6 @@ export function createLazyBrowser(driverFactory: () => Promise<Driver>): {
       async newPage(): Promise<BrowserPage> {
         return (await ensure()).provider.newPage();
       },
-      async cdpEndpoint(): Promise<string> {
-        return (await ensure()).provider.cdpEndpoint();
-      },
     },
     async teardown(): Promise<void> {
       if (driver === undefined) return;

@@ -6,6 +6,8 @@ export interface FakePageScript {
   failedRequests?: FailedRequest[];
   requests?: Array<{ url: string; method: string }>;
   content?: string;
+  /** when set, goto() rejects with an Error carrying this message */
+  throwOnGoto?: string;
 }
 
 /** An in-memory BrowserProvider that replays scripted per-URL events. No Chromium. */
@@ -28,6 +30,8 @@ export function fakeBrowser(scripted: Record<string, FakePageScript>): BrowserPr
         },
         goto(url) {
           script = scripted[url] ?? {};
+          if (script.throwOnGoto !== undefined)
+            return Promise.reject(new Error(script.throwOnGoto));
           for (const request of script.requests ?? [])
             for (const handler of requestHandlers) handler(request.url, request.method);
           for (const message of script.errors ?? [])
@@ -44,9 +48,6 @@ export function fakeBrowser(scripted: Record<string, FakePageScript>): BrowserPr
         },
       };
       return Promise.resolve(page);
-    },
-    cdpEndpoint() {
-      return Promise.resolve("ws://fake-cdp");
     },
   };
 }

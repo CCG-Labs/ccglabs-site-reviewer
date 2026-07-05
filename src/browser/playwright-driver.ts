@@ -72,17 +72,6 @@ export async function createPlaywrightDriver(): Promise<{
         },
       };
     },
-    async cdpEndpoint(): Promise<string> {
-      // browser.wsEndpoint() only exists on a BrowserServer (launchServer());
-      // a Browser from launch() exposes the equivalent via bind(), which
-      // starts a websocket server for other clients to connect to. Used by
-      // Lighthouse in a later PR.
-      const { endpoint } = await browser.bind("site-reviewer", {
-        host: "127.0.0.1",
-        port: 0,
-      });
-      return endpoint;
-    },
   };
 
   return {

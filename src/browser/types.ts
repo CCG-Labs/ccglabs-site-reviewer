@@ -27,8 +27,6 @@ export interface BrowserPage {
 export interface BrowserProvider {
   /** a fresh isolated page; the engine tracks and closes it at teardown */
   newPage(): Promise<BrowserPage>;
-  /** CDP endpoint for tools that drive Chromium directly (Lighthouse, later PRs) */
-  cdpEndpoint(): Promise<string>;
 }
 
 /** Thrown by the provider when the browser is present-but-unlaunchable (e.g. Chromium not installed). */

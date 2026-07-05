@@ -36,7 +36,6 @@ describe.skipIf(!hasBrowser)("playwright driver (real Chromium)", () => {
       await page.close();
       expect(status).toBe(200);
       expect(errors.join(" ")).toContain("boom-smoke");
-      expect(await driver.provider.cdpEndpoint()).not.toBe("");
     } finally {
       await driver.teardown();
     }

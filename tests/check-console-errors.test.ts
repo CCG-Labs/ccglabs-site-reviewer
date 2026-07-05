@@ -77,6 +77,24 @@ describe("functionality.console-errors", () => {
     expect(outcome).toEqual({ score: 100, findings: [] });
   });
 
+  it("warns when a page cannot be loaded in the browser and still evaluates the rest", async () => {
+    const outcome = await consoleErrorsCheck.run(
+      contextFor([{ url: "https://x.com/" }, { url: "https://x.com/a" }], {
+        "https://x.com/": { throwOnGoto: "net::ERR_TIMED_OUT navigating" },
+        "https://x.com/a": { errors: ["Uncaught TypeError: boom"] },
+      }),
+    );
+    const navWarning = outcome.findings.find(
+      (f) => f.severity === "warning" && f.url === "https://x.com/",
+    );
+    expect(navWarning?.message).toContain("could not be loaded");
+    expect(navWarning?.message).toContain("net::ERR_TIMED_OUT");
+    // the run completed: the second page was still evaluated and flagged
+    expect(
+      outcome.findings.some((f) => f.severity === "error" && f.url === "https://x.com/a"),
+    ).toBe(true);
+  });
+
   it("returns 100 when the browser provider is absent", async () => {
     const ctx = contextFor([{ url: "https://x.com/" }], {});
     const outcome = await consoleErrorsCheck.run({ ...ctx, browser: undefined });
