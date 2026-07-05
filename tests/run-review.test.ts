@@ -255,4 +255,30 @@ describe("runReview", () => {
     expect(images?.status).toBe("warn");
     expect(images?.findings.some((finding) => finding.message.includes("alt"))).toBe(true);
   });
+
+  it("surfaces soft-404 and exposed-file issues from a live crawl", async () => {
+    server = await startServer((req, res) => {
+      if (req.url?.startsWith("/.env")) {
+        res.setHeader("content-type", "text/plain");
+        res.end("DB_PASSWORD=hunter2");
+        return;
+      }
+      // soft-404: everything returns 200 HTML
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
+    });
+    const report = await runReview({ url: server.url, environment: "production" });
+    const functionality = report.categories.find((category) => category.id === "functionality");
+    const security = report.categories.find((category) => category.id === "security");
+    expect(
+      functionality?.checks
+        .find((entry) => entry.id === "functionality.error-pages")
+        ?.findings.some((finding) => finding.message.includes("soft 404")),
+    ).toBe(true);
+    expect(
+      security?.checks
+        .find((entry) => entry.id === "security.sensitive-files")
+        ?.findings.some((finding) => finding.message.includes("/.env")),
+    ).toBe(true);
+  });
 });
