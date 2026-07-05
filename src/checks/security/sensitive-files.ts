@@ -74,8 +74,10 @@ export const sensitiveFilesCheck: Check = {
     // Only probe origin-relative entries — an absolute URL in `paths`/
     // `additionalPaths` would make new URL(path, origin) target a third-party
     // host, turning misconfiguration into requests we should never send.
+    // A leading "//" is protocol-relative (e.g. "//evil.example/x") and also
+    // resolves to a third-party host, so it must be rejected too.
     const relativePaths = options.paths.filter((path) => {
-      if (path.startsWith("/")) return true;
+      if (path.startsWith("/") && !path.startsWith("//")) return true;
       ctx.logger.debug("Skipping non-relative sensitive-file path entry", { path });
       return false;
     });

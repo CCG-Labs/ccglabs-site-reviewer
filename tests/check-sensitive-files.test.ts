@@ -189,6 +189,35 @@ describe("security.sensitive-files", () => {
     );
   });
 
+  it("never requests protocol-relative path entries pointing at third-party hosts", async () => {
+    const hits: string[] = [];
+    server = await startServer((req, res) => {
+      hits.push(req.url ?? "");
+      res.statusCode = 404;
+      res.end("not found");
+    });
+    const requested: string[] = [];
+    const base = createFetcher();
+    const recordingFetch: CheckContext["fetch"] = (url, init) => {
+      requested.push(url);
+      return base(url, init);
+    };
+    const outcome = await sensitiveFilesCheck.run({
+      ...contextFor(server.url, {
+        "security.sensitive-files": { options: { paths: ["//evil.example/x", "/.env"] } },
+      }),
+      fetch: recordingFetch,
+    });
+    expect(requested.some((url) => url.includes("evil.example"))).toBe(false);
+    expect(hits).toEqual(["/.env"]);
+    expect(outcome.findings.some((finding) => finding.message.includes("evil.example"))).toBe(
+      false,
+    );
+    expect(outcome.findings.some((finding) => (finding.url ?? "").includes("evil.example"))).toBe(
+      false,
+    );
+  });
+
   it("does not flag a 200 response with an empty body", async () => {
     server = await startServer((req, res) => {
       if (req.url === "/.env") {
