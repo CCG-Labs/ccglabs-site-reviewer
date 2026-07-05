@@ -27,6 +27,11 @@ describe("runReview", () => {
         );
         return;
       }
+      if (req.url !== "/") {
+        res.statusCode = 404;
+        res.end("not found");
+        return;
+      }
       res.end("<html></html>");
     });
     const report = await runReview({ url: server.url });
@@ -86,7 +91,7 @@ describe("runReview", () => {
 
   it("honors config overrides that disable a check", async () => {
     server = await startServer((req, res) => {
-      if (req.url === "/robots.txt" || req.url === "/sitemap.xml") {
+      if (req.url !== "/") {
         res.statusCode = 404;
         res.end("not found");
         return;
