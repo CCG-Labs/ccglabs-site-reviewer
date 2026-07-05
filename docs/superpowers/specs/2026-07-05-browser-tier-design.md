@@ -52,7 +52,10 @@ This happens before `run()` is ever called, so a browser check's `run()` is guar
 ```ts
 export interface BrowserPage {
   /** navigate; returns the main response status (or throws on nav failure) */
-  goto(url: string, options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" }): Promise<number>;
+  goto(
+    url: string,
+    options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
+  ): Promise<number>;
   /** subscribe to console/page errors and failed requests before navigation */
   onConsoleError(handler: (message: string) => void): void;
   onRequestFailed(handler: (url: string, failure: string) => void): void;
@@ -91,12 +94,12 @@ The provider is backed by `src/browser/playwright-driver.ts`, the ONLY module th
 
 ### The four checks
 
-| Check | id | category | needs beyond Playwright | default severity |
-| --- | --- | --- | --- | --- |
-| Console errors | `functionality.console-errors` | functionality | — | error (uncaught JS), warning (failed request) |
-| Accessibility (axe) | `accessibility.axe` | accessibility | `@axe-core/playwright` (also optional peer) | error (serious/critical), warning (moderate) |
-| Lighthouse / CWV | `performance.lighthouse` | performance | `lighthouse` | warning (advisory) → error when a configured threshold is exceeded |
-| Analytics | `operations.analytics` | operations | — | warning |
+| Check               | id                             | category      | needs beyond Playwright                     | default severity                                                   |
+| ------------------- | ------------------------------ | ------------- | ------------------------------------------- | ------------------------------------------------------------------ |
+| Console errors      | `functionality.console-errors` | functionality | —                                           | error (uncaught JS), warning (failed request)                      |
+| Accessibility (axe) | `accessibility.axe`            | accessibility | `@axe-core/playwright` (also optional peer) | error (serious/critical), warning (moderate)                       |
+| Lighthouse / CWV    | `performance.lighthouse`       | performance   | `lighthouse`                                | warning (advisory) → error when a configured threshold is exceeded |
+| Analytics           | `operations.analytics`         | operations    | —                                           | warning                                                            |
 
 - **Which pages:** browser checks are expensive, so they sample the crawl rather than visiting every page. Default: the base URL plus up to `browserSampleSize` (default 5) additional crawled HTML pages (configurable; `0` = base URL only). The sampled set is shared across browser checks so each page is visited once per check, not once per check per page beyond the sample. Console-errors and axe iterate the sample; Lighthouse runs on the base URL only by default (it is the heaviest) with an optional `lighthouse.urls` list; analytics runs on the base URL plus one deep page.
 - **console-errors:** load each sampled page, collect `page.on("console")` error-level messages, `page.on("pageerror")`, and `page.on("requestfailed")`; whitelist noisy third parties via `ignore` option (substring match on message/URL). Uncaught exceptions → error; failed sub-resource requests → warning; mixed severities per page aggregated.

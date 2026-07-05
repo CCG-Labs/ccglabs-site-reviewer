@@ -296,4 +296,21 @@ describe("runReview", () => {
     });
     expect(report.skipped.some((skip) => skip.id === "functionality.console-errors")).toBe(true);
   });
+
+  it("surfaces console errors end-to-end when a browser is available", async () => {
+    const { probeBrowserCapability } = await import("../src/browser/lazy-browser.js");
+    if (!(await probeBrowserCapability())) return; // skip on a lean checkout
+    server = await startServer((_req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(
+        '<html lang="en"><head><title>t</title></head><body><script>undefinedFn()</script></body></html>',
+      );
+    });
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const check = report.categories
+      .find((c) => c.id === "functionality")
+      ?.checks.find((e) => e.id === "functionality.console-errors");
+    expect(check?.status).toBe("fail");
+    expect(check?.findings.some((f) => f.severity === "error")).toBe(true);
+  }, 30_000);
 });
