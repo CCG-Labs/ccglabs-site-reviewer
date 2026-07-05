@@ -2,6 +2,7 @@ import { allowedOriginsFor } from "../../crawl/crawler.js";
 import { pageDom } from "../../crawl/page-dom.js";
 import { normalizePageUrl } from "../../crawl/url.js";
 import type { Check, CheckContext, Finding } from "../../types.js";
+import { createProbeCache } from "../probe-cache.js";
 
 const DEFAULT_MAX_IMAGE_BYTES = 500_000;
 const INTERNAL_PROBE_LIMIT = 500;
@@ -108,23 +109,15 @@ export const imagesCheck: Check = {
       }
     }
 
-    const probeCache = new Map<string, Promise<number | undefined>>();
-    const contentLength = (url: string): Promise<number | undefined> => {
-      const cached = probeCache.get(url);
-      if (cached !== undefined) return cached;
-      const result = (async (): Promise<number | undefined> => {
-        try {
-          let response = await ctx.fetch(url, { method: "HEAD" });
-          if (response.status === 405 || response.status === 501) response = await ctx.fetch(url);
-          const raw = response.headers["content-length"];
-          const parsed = raw === undefined ? Number.NaN : Number(raw);
-          return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
-        } catch {
-          return undefined;
-        }
-      })();
-      probeCache.set(url, result);
-      return result;
+    const contentLengthProbe = createProbeCache(
+      ctx.fetch,
+      (status) => status === 405 || status === 501,
+    );
+    const contentLength = async (url: string): Promise<number | undefined> => {
+      const r = await contentLengthProbe(url);
+      const raw = r.reachable ? r.headers["content-length"] : undefined;
+      const parsed = raw === undefined ? Number.NaN : Number(raw);
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
     };
 
     const checkSize = async (imageUrl: string, pageUrl: string): Promise<void> => {
@@ -149,6 +142,7 @@ export const imagesCheck: Check = {
     }
     await Promise.all(internalEntries.map(([imageUrl, pageUrl]) => checkSize(imageUrl, pageUrl)));
 
+    let externalProbed = 0;
     if (ctx.environment === "production") {
       const externalEntries = [...externalImages.entries()];
       if (externalEntries.length > EXTERNAL_PROBE_LIMIT) {
@@ -157,12 +151,13 @@ export const imagesCheck: Check = {
         });
         externalEntries.length = EXTERNAL_PROBE_LIMIT;
       }
+      externalProbed = externalEntries.length;
       await Promise.all(externalEntries.map(([imageUrl, pageUrl]) => checkSize(imageUrl, pageUrl)));
     }
 
     ctx.logger.debug("Image scan", {
       pagesChecked: pages.length,
-      imagesProbed: probeCache.size,
+      imagesProbed: internalEntries.length + externalProbed,
       findings: findings.length,
     });
     const cleanPages = pages.length - pagesWithErrors.size;

@@ -3,6 +3,7 @@ import { pageDom } from "../../crawl/page-dom.js";
 import { normalizePageUrl } from "../../crawl/url.js";
 import type { Check, CheckContext, CrawledPage, Finding } from "../../types.js";
 import { extractPageRefs, hasAnchorTarget } from "./link-extract.js";
+import { createProbeCache } from "../probe-cache.js";
 
 const EXTERNAL_PROBE_LIMIT = 50;
 const INTERNAL_PROBE_LIMIT = 500;
@@ -19,8 +20,6 @@ function linkOptions(ctx: CheckContext): LinkCheckOptions {
       : [],
   };
 }
-
-type ProbeResult = { kind: "status"; status: number } | { kind: "unreachable"; message: string };
 
 export const linksCheck: Check = {
   id: "functionality.links",
@@ -61,28 +60,7 @@ export const linksCheck: Check = {
         pagesWithErrors.add(finding.url);
     };
 
-    const probeCache = new Map<string, Promise<ProbeResult>>();
-    const probe = (url: string): Promise<ProbeResult> => {
-      const cached = probeCache.get(url);
-      if (cached !== undefined) return cached;
-      const result = (async (): Promise<ProbeResult> => {
-        try {
-          const head = await ctx.fetch(url, { method: "HEAD" });
-          if (head.status >= 400) {
-            const get = await ctx.fetch(url);
-            return { kind: "status", status: get.status };
-          }
-          return { kind: "status", status: head.status };
-        } catch (error) {
-          return {
-            kind: "unreachable",
-            message: error instanceof Error ? error.message : String(error),
-          };
-        }
-      })();
-      probeCache.set(url, result);
-      return result;
-    };
+    const probe = createProbeCache(ctx.fetch);
 
     /** external URL (or internal asset) → every page that referenced it (Map keyed in first-reference order) */
     const internalAssetRefs = new Map<string, Set<string>>();
@@ -157,12 +135,12 @@ export const linksCheck: Check = {
     await Promise.all(
       internalAssetEntries.map(async ([assetUrl, pageUrls]) => {
         const result = await probe(assetUrl);
-        if (result.kind === "unreachable") {
+        if (!result.reachable) {
           for (const pageUrl of pageUrls) {
             record({
               severity: "error",
               url: pageUrl,
-              message: `Asset unreachable: ${assetUrl} (${result.message}).`,
+              message: `Asset unreachable: ${assetUrl} (${result.error ?? "unreachable"}).`,
               recommendation: "Fix the asset path or restore the file.",
             });
           }
@@ -190,12 +168,12 @@ export const linksCheck: Check = {
     await Promise.all(
       externalEntries.map(async ([url, pageUrls]) => {
         const result = await probe(url);
-        if (result.kind === "unreachable") {
+        if (!result.reachable) {
           for (const pageUrl of pageUrls) {
             record({
               severity: "warning",
               url: pageUrl,
-              message: `External link unreachable: ${url} (${result.message}).`,
+              message: `External link unreachable: ${url} (${result.error ?? "unreachable"}).`,
               recommendation: "Verify the destination still exists; update or remove the link.",
             });
           }
