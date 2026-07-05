@@ -281,4 +281,19 @@ describe("runReview", () => {
         ?.findings.some((finding) => finding.message.includes("/.env")),
     ).toBe(true);
   });
+
+  it("skips browser checks (with the extras hint) when playwright is not injected", async () => {
+    server = await startServer((_req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
+    });
+    // In the fast test path, the real capability probe finds playwright as a
+    // devDependency — so force the unavailable path via a test-only override.
+    const report = await runReview({
+      url: server.url,
+      environment: "ci",
+      browserCapability: false,
+    });
+    expect(report.skipped.some((skip) => skip.id === "functionality.console-errors")).toBe(true);
+  });
 });
