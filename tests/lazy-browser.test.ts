@@ -11,6 +11,9 @@ describe("probeBrowserCapability", () => {
       await probeBrowserCapability(() => Promise.reject(new Error("Cannot find module"))),
     ).toBe(false);
   });
+  it("is false with the default importer (playwright is not installed)", async () => {
+    expect(await probeBrowserCapability()).toBe(false);
+  });
 });
 
 describe("createLazyBrowser", () => {
@@ -42,5 +45,22 @@ describe("createLazyBrowser", () => {
     expect(teardown).toHaveBeenCalledTimes(1);
     await lazy.teardown(); // idempotent
     expect(teardown).toHaveBeenCalledTimes(1);
+  });
+
+  it("teardown invokes the underlying teardown exactly once when called concurrently", async () => {
+    const teardown = vi.fn(() => Promise.resolve());
+    const lazy = createLazyBrowser(() => Promise.resolve({ provider: fakeBrowser({}), teardown }));
+    await lazy.provider.newPage();
+    await Promise.all([lazy.teardown(), lazy.teardown()]);
+    expect(teardown).toHaveBeenCalledTimes(1);
+  });
+
+  it("cdpEndpoint triggers the lazy launch", async () => {
+    const factory = vi.fn(() =>
+      Promise.resolve({ provider: fakeBrowser({}), teardown: () => Promise.resolve() }),
+    );
+    const lazy = createLazyBrowser(factory);
+    await lazy.provider.cdpEndpoint();
+    expect(factory).toHaveBeenCalledTimes(1);
   });
 });

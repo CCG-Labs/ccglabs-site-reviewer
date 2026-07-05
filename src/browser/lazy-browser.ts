@@ -28,6 +28,7 @@ export function createLazyBrowser(driverFactory: () => Promise<Driver>): {
   teardown: () => Promise<void>;
 } {
   let driver: Promise<Driver> | undefined;
+  let teardownPromise: Promise<void> | undefined;
   const ensure = (): Promise<Driver> => {
     driver ??= driverFactory();
     return driver;
@@ -45,7 +46,8 @@ export function createLazyBrowser(driverFactory: () => Promise<Driver>): {
       if (driver === undefined) return;
       const resolved = await driver;
       driver = undefined;
-      await resolved.teardown();
+      teardownPromise ??= resolved.teardown();
+      await teardownPromise;
     },
   };
 }
