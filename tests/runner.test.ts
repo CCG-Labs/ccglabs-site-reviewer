@@ -52,6 +52,33 @@ describe("partitionChecks", () => {
   });
 });
 
+describe("partitionChecks browser capability", () => {
+  const browserCheck = makeCheck({ id: "b", requires: "browser" });
+  const fetchCheck = makeCheck({ id: "f" });
+
+  it("skips browser checks with an install hint when the capability is unavailable", () => {
+    const { toRun, skipped } = partitionChecks([browserCheck, fetchCheck], "ci", {}, false);
+    expect(toRun.map((c) => c.id)).toEqual(["f"]);
+    expect(skipped).toEqual([
+      {
+        id: "b",
+        reason:
+          "requires the browser extras — run: npm i -D playwright lighthouse && npx playwright install chromium",
+      },
+    ]);
+  });
+
+  it("runs browser checks when the capability is available", () => {
+    const { toRun } = partitionChecks([browserCheck], "ci", {}, true);
+    expect(toRun.map((c) => c.id)).toEqual(["b"]);
+  });
+
+  it("config-disable wins over the capability skip", () => {
+    const { skipped } = partitionChecks([browserCheck], "ci", { b: { enabled: false } }, false);
+    expect(skipped[0]?.reason).toBe("disabled by config");
+  });
+});
+
 describe("applyOverride", () => {
   it("overrides blocking and weight", () => {
     const check = applyOverride(makeCheck({ blocking: false, weight: 1 }), {
