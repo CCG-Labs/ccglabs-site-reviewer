@@ -11,8 +11,8 @@ describe("probeBrowserCapability", () => {
       await probeBrowserCapability(() => Promise.reject(new Error("Cannot find module"))),
     ).toBe(false);
   });
-  it("is false with the default importer (playwright is not installed)", async () => {
-    expect(await probeBrowserCapability()).toBe(false);
+  it("is true with the default importer (playwright is installed as a devDependency)", async () => {
+    expect(await probeBrowserCapability()).toBe(true);
   });
 });
 

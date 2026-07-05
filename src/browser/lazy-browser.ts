@@ -2,7 +2,6 @@ import type { BrowserPage, BrowserProvider } from "./types.js";
 
 /** True iff the browser peer dependency can be imported. */
 export async function probeBrowserCapability(
-  // @ts-expect-error playwright is an optional peer dependency
   importer: () => Promise<unknown> = () => import("playwright"),
 ): Promise<boolean> {
   try {

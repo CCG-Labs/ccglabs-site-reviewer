@@ -21,6 +21,18 @@
   "files": [
     "dist"
   ],
+  "peerDependencies": {
+    "playwright": "*",
+    "lighthouse": "*"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    },
+    "lighthouse": {
+      "optional": true
+    }
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -39,6 +51,7 @@
     "domhandler": "^5.0.3",
     "eslint": "^10.6.0",
     "eslint-plugin-security": "^4.0.1",
+    "playwright": "^1.61.1",
     "prettier": "^3.9.4",
     "publint": "^0.3.21",
     "tsup": "^8.5.1",
