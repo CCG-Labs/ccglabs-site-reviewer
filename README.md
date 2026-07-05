@@ -60,6 +60,8 @@ separately reports what search engines will and won't be allowed to crawl.
 | `seo.social-meta`              | Open Graph/Twitter tags present per page; og:image is absolute, resolves, and is an image (external images probed in production only)                                                                 |
 | `content.placeholders`         | no lorem ipsum, unrendered `{{templates}}`, stray `undefined`/`NaN` (errors) or TODO/FIXME (warnings) in visible text                                                                                 |
 | `content.images`               | images carry alt text (error in production, warning elsewhere) and width/height (warning); image files probed for oversize — same-origin always, cross-origin in production (warning, 500 KB default) |
+| `functionality.error-pages`    | nonexistent URLs return a real 404 (soft-200 is an error, redirect a warning); optional branded-404 marker check                                                                                      |
+| `security.sensitive-files`     | probes for publicly accessible `.env`, `.git`, backups, key files (ci + production)                                                                                                                   |
 | `security.headers`             | OWASP security headers present with sane values, including on error responses (error in production, warning in ci)                                                                                    |
 | `security.tls`                 | https enforced, certificate valid and >30 days from expiry, no mixed content (production only)                                                                                                        |
 

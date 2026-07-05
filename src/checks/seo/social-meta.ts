@@ -2,6 +2,7 @@ import type { CheerioAPI } from "cheerio";
 import { allowedOriginsFor } from "../../crawl/crawler.js";
 import { pageDom } from "../../crawl/page-dom.js";
 import type { Check, Finding } from "../../types.js";
+import { createProbeCache } from "../probe-cache.js";
 
 export interface SocialMeta {
   ogTagCount: number;
@@ -30,9 +31,6 @@ export function extractSocialMeta($: CheerioAPI): SocialMeta {
   };
 }
 
-type ProbeResult =
-  { kind: "status"; status: number; contentType: string } | { kind: "unreachable" };
-
 export const socialMetaCheck: Check = {
   id: "seo.social-meta",
   category: "seo",
@@ -54,26 +52,7 @@ export const socialMetaCheck: Check = {
     };
 
     const allowedOrigins = allowedOriginsFor(new URL(ctx.baseUrl));
-    const probeCache = new Map<string, Promise<ProbeResult>>();
-    const probe = (url: string): Promise<ProbeResult> => {
-      const cached = probeCache.get(url);
-      if (cached !== undefined) return cached;
-      const result = (async (): Promise<ProbeResult> => {
-        try {
-          let response = await ctx.fetch(url, { method: "HEAD" });
-          if (response.status === 405 || response.status === 501) response = await ctx.fetch(url);
-          return {
-            kind: "status",
-            status: response.status,
-            contentType: response.headers["content-type"] ?? "",
-          };
-        } catch {
-          return { kind: "unreachable" };
-        }
-      })();
-      probeCache.set(url, result);
-      return result;
-    };
+    const probe = createProbeCache(ctx.fetch, (status) => status === 405 || status === 501);
 
     /**
      * og:image URL → first page that referenced it, split by origin trust.
@@ -144,21 +123,22 @@ export const socialMetaCheck: Check = {
       brokenSeverity: Finding["severity"],
     ): Promise<void> => {
       const result = await probe(imageUrl);
-      if (result.kind === "unreachable" || result.status >= 400) {
+      if (!result.reachable || result.status >= 400) {
         record({
           severity: brokenSeverity,
           url: pageUrl,
-          message: `og:image does not resolve: ${imageUrl}${result.kind === "status" ? ` (HTTP ${String(result.status)})` : ""}`,
+          message: `og:image does not resolve: ${imageUrl}${result.reachable ? ` (HTTP ${String(result.status)})` : ""}`,
           recommendation:
             "Fix the image URL — a broken og:image makes every share of this page look broken.",
         });
         return;
       }
-      if (result.contentType !== "" && !result.contentType.startsWith("image/")) {
+      const contentType = result.headers["content-type"] ?? "";
+      if (contentType !== "" && !contentType.startsWith("image/")) {
         record({
           severity: "warning",
           url: pageUrl,
-          message: `og:image is not an image (content-type ${result.contentType}): ${imageUrl}`,
+          message: `og:image is not an image (content-type ${contentType}): ${imageUrl}`,
           recommendation: "Point og:image at an actual image file (1200×630 recommended).",
         });
       }
@@ -179,7 +159,8 @@ export const socialMetaCheck: Check = {
 
     ctx.logger.debug("Social meta summary", {
       pagesChecked: pages.length,
-      imagesProbed: probeCache.size,
+      imagesProbed:
+        internalImages.size + (ctx.environment === "production" ? externalImages.size : 0),
       findings: findings.length,
     });
 
