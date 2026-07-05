@@ -141,6 +141,54 @@ describe("security.sensitive-files", () => {
     expect(hits).not.toContain("/.git/config");
   });
 
+  it("caps the probed path list at 100 entries", async () => {
+    const hits: string[] = [];
+    server = await startServer((req, res) => {
+      hits.push(req.url ?? "");
+      res.statusCode = 404;
+      res.end("not found");
+    });
+    const paths = Array.from({ length: 150 }, (_unused, index) => `/f${String(index)}`);
+    const outcome = await sensitiveFilesCheck.run(
+      contextFor(server.url, { "security.sensitive-files": { options: { paths } } }),
+    );
+    expect(outcome).toEqual({ score: 100, findings: [] });
+    expect(hits).toHaveLength(100);
+    expect(new Set(hits).size).toBe(100);
+    expect(hits).toContain("/f0");
+    expect(hits).toContain("/f99");
+    expect(hits).not.toContain("/f100");
+  });
+
+  it("never requests absolute-URL path entries pointing at third-party hosts", async () => {
+    const hits: string[] = [];
+    server = await startServer((req, res) => {
+      hits.push(req.url ?? "");
+      res.statusCode = 404;
+      res.end("not found");
+    });
+    const requested: string[] = [];
+    const base = createFetcher();
+    const recordingFetch: CheckContext["fetch"] = (url, init) => {
+      requested.push(url);
+      return base(url, init);
+    };
+    const outcome = await sensitiveFilesCheck.run({
+      ...contextFor(server.url, {
+        "security.sensitive-files": { options: { paths: ["https://evil.example/x", "/.env"] } },
+      }),
+      fetch: recordingFetch,
+    });
+    expect(requested.some((url) => url.includes("evil.example"))).toBe(false);
+    expect(hits).toEqual(["/.env"]);
+    expect(outcome.findings.some((finding) => finding.message.includes("evil.example"))).toBe(
+      false,
+    );
+    expect(outcome.findings.some((finding) => (finding.url ?? "").includes("evil.example"))).toBe(
+      false,
+    );
+  });
+
   it("does not flag a 200 response with an empty body", async () => {
     server = await startServer((req, res) => {
       if (req.url === "/.env") {

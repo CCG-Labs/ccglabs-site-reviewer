@@ -71,8 +71,17 @@ export const sensitiveFilesCheck: Check = {
     const origin = new URL(ctx.baseUrl).origin;
     const findings: Finding[] = [];
 
+    // Only probe origin-relative entries — an absolute URL in `paths`/
+    // `additionalPaths` would make new URL(path, origin) target a third-party
+    // host, turning misconfiguration into requests we should never send.
+    const relativePaths = options.paths.filter((path) => {
+      if (path.startsWith("/")) return true;
+      ctx.logger.debug("Skipping non-relative sensitive-file path entry", { path });
+      return false;
+    });
+
     await Promise.all(
-      options.paths
+      relativePaths
         .filter((path) => !options.ignore.some((pattern) => path.includes(pattern)))
         .map(async (path) => {
           const url = new URL(path, origin).href;
@@ -95,7 +104,7 @@ export const sensitiveFilesCheck: Check = {
     );
 
     ctx.logger.debug("Sensitive-file scan", {
-      probed: options.paths.length,
+      probed: relativePaths.length,
       findings: findings.length,
     });
     const errors = findings.filter((finding) => finding.severity === "error").length;
