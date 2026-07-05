@@ -38,6 +38,7 @@ const contextFor = (
     environment,
     maxPages: 200,
     failThreshold: 80,
+    browserSampleSize: 5,
     requestHeaders: {},
     checks: {},
     customChecks: [],

@@ -85,6 +85,8 @@ export interface CheckContext {
   /** crawl results shared by all checks — one fetch per page for the whole run */
   pages: PageStore;
   fetch: RateLimitedFetch;
+  /** present only when the browser capability is available; undefined otherwise */
+  browser?: import("./browser/types.js").BrowserProvider;
   logger: Logger;
 }
 
@@ -99,6 +101,8 @@ export interface Check {
   blocking: boolean;
   /** relative weight within its category */
   weight: number;
+  /** capability this check needs; absent = fetch-tier default (no browser) */
+  requires?: "browser";
   run(ctx: CheckContext): Promise<CheckOutcome>;
 }
 
@@ -113,6 +117,7 @@ export interface SiteReviewConfig {
   environment?: Environment;
   maxPages?: number;
   failThreshold?: number;
+  browserSampleSize?: number;
   requestHeaders?: Record<string, string>;
   checks?: Record<string, boolean | CheckOverride>;
   environments?: Partial<Record<Environment, Omit<SiteReviewConfig, "environments">>>;
@@ -123,6 +128,7 @@ export interface ResolvedConfig {
   environment: Environment;
   maxPages: number;
   failThreshold: number;
+  browserSampleSize: number;
   requestHeaders: Record<string, string>;
   checks: Record<string, CheckOverride>;
   customChecks: Check[];
