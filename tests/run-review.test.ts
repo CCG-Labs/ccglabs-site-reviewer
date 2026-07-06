@@ -336,4 +336,21 @@ describe("runReview", () => {
       ?.checks.find((e) => e.id === "functionality.console-errors");
     expect(consoleErrorsCheck?.status).toBe("error");
   });
+
+  it("surfaces accessibility violations end-to-end when a browser is available", async () => {
+    const { probeBrowserCapability } = await import("../src/browser/lazy-browser.js");
+    if (!(await probeBrowserCapability())) return;
+    server = await startServer((_req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(
+        '<html lang="en"><head><title>t</title></head><body><img src="/x.png"></body></html>',
+      );
+    });
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const check = report.categories
+      .find((c) => c.id === "accessibility")
+      ?.checks.find((e) => e.id === "accessibility.axe");
+    expect(check).toBeDefined();
+    expect(check?.findings.some((f) => f.message.includes("image-alt"))).toBe(true);
+  }, 30_000);
 });

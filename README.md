@@ -62,6 +62,7 @@ separately reports what search engines will and won't be allowed to crawl.
 | `content.images`               | images carry alt text (error in production, warning elsewhere) and width/height (warning); image files probed for oversize — same-origin always, cross-origin in production (warning, 500 KB default) |
 | `functionality.error-pages`    | nonexistent URLs return a real 404 (soft-200 is an error, redirect a warning); optional branded-404 marker check                                                                                      |
 | `functionality.console-errors` | pages load with no uncaught JS errors (error) or failed resource requests (warning) — needs the browser extras                                                                                        |
+| `accessibility.axe`            | automated axe-core WCAG scan (critical/serious → error, moderate → warning) — needs the browser extras; catches ~30–50% of issues, not a full a11y audit                                              |
 | `security.sensitive-files`     | probes for publicly accessible `.env`, `.git`, backups, key files (ci + production)                                                                                                                   |
 | `security.headers`             | OWASP security headers present with sane values, including on error responses (error in production, warning in ci)                                                                                    |
 | `security.tls`                 | https enforced, certificate valid and >30 days from expiry, no mixed content (production only)                                                                                                        |
@@ -90,7 +91,7 @@ releases — accessibility, Lighthouse, and analytics) are **off by default** to
 keep the base install lean. Enable them by installing the browser extras:
 
 ```bash
-npm i -D playwright lighthouse
+npm i -D playwright lighthouse @axe-core/playwright
 npx playwright install chromium
 ```
 
