@@ -86,8 +86,9 @@ Internal asset probing caps at 500 unique URLs per run, external at 50; overflow
 
 ## Browser checks (optional)
 
-Checks that need a real browser (`functionality.console-errors`, and — in later
-releases — accessibility, Lighthouse, and analytics) are **off by default** to
+Checks that need a real browser (`functionality.console-errors`,
+`accessibility.axe`, and — in later releases — Lighthouse and analytics) are
+**off by default** to
 keep the base install lean. Enable them by installing the browser extras:
 
 ```bash
