@@ -10,7 +10,7 @@ export interface FailedRequest {
  * imports playwright directly.
  */
 export interface BrowserPage {
-  /** register a handler for console-level errors AND uncaught page exceptions */
+  /** register a handler for uncaught page exceptions (pageerror); console.error is intentionally not delivered */
   onError(handler: (message: string) => void): void;
   /** register a handler for failed sub-resource requests */
   onRequestFailed(handler: (request: FailedRequest) => void): void;

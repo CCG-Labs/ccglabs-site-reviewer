@@ -1,5 +1,6 @@
 import type { Check, CheckContext, CheckOverride, Environment, Finding } from "../types.js";
 import { statusFromFindings } from "./score.js";
+import { BrowserLaunchError } from "../browser/types.js";
 
 export interface ExecutedCheck {
   check: Check;
@@ -10,7 +11,7 @@ export interface ExecutedCheck {
 }
 
 const BROWSER_EXTRAS_HINT =
-  "requires the browser extras — run: npm i -D playwright lighthouse && npx playwright install chromium";
+  "requires the browser extras — run: npm i -D playwright lighthouse @axe-core/playwright && npx playwright install chromium";
 
 export function partitionChecks(
   checks: Check[],
@@ -85,6 +86,21 @@ export async function runChecks(
           debug,
         };
       } catch (error) {
+        if (error instanceof BrowserLaunchError) {
+          return {
+            check,
+            status: "error",
+            score: 0,
+            findings: [
+              {
+                severity: "error",
+                message: `Browser could not launch: ${error.message}`,
+                recommendation: "Install the browser with: npx playwright install chromium",
+              },
+            ],
+            debug,
+          };
+        }
         const message = error instanceof Error ? error.message : String(error);
         return {
           check,

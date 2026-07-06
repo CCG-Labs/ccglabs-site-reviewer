@@ -63,7 +63,7 @@ describe("partitionChecks browser capability", () => {
       {
         id: "b",
         reason:
-          "requires the browser extras — run: npm i -D playwright lighthouse && npx playwright install chromium",
+          "requires the browser extras — run: npm i -D playwright lighthouse @axe-core/playwright && npx playwright install chromium",
       },
     ]);
   });
@@ -136,5 +136,36 @@ describe("runChecks", () => {
       base,
     );
     expect(executed?.score).toBe(100);
+  });
+});
+
+describe("runChecks BrowserLaunchError handling", () => {
+  const base = {
+    baseUrl: "http://x.test",
+    environment: "ci" as const,
+    config: {
+      environment: "ci" as const,
+      maxPages: 200,
+      failThreshold: 80,
+      browserSampleSize: 5,
+      requestHeaders: {},
+      checks: {},
+      customChecks: [],
+    },
+    pages: fixturePageStore([]),
+    fetch: () => Promise.reject(new Error("no fetch")),
+  };
+
+  it("reports a browser launch failure with an install remediation, not a bug report", async () => {
+    const { BrowserLaunchError } = await import("../src/browser/types.js");
+    const check = makeCheck({
+      id: "b",
+      requires: "browser",
+      run: () => Promise.reject(new BrowserLaunchError("Chromium missing")),
+    });
+    const [executed] = await runChecks([check], base);
+    expect(executed?.status).toBe("error");
+    expect(executed?.findings[0]?.recommendation).toContain("npx playwright install chromium");
+    expect(executed?.findings[0]?.message).not.toContain("report it as a bug");
   });
 });
