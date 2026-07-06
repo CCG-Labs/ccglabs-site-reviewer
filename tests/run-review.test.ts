@@ -361,4 +361,22 @@ describe("runReview", () => {
     expect(check).toBeDefined();
     expect(check?.findings.some((f) => f.message.includes("image-alt"))).toBe(true);
   }, 30_000);
+
+  it("runs a real Lighthouse audit end-to-end when a browser is available", async () => {
+    const { probeBrowserCapability } = await import("../src/browser/lazy-browser.js");
+    if (!(await probeBrowserCapability())) return; // skip on a lean checkout
+    server = await startServer((_req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
+    });
+    // Deliberately does NOT use NO_LIGHTHOUSE — this test exists to exercise the real audit.
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const check = report.categories
+      .find((c) => c.id === "performance")
+      ?.checks.find((e) => e.id === "performance.lighthouse");
+    expect(check).toBeDefined();
+    expect(check?.score).toBeGreaterThanOrEqual(0);
+    expect(check?.score).toBeLessThanOrEqual(100);
+    expect(report.skipped.some((skip) => skip.id === "performance.lighthouse")).toBe(false);
+  }, 120_000);
 });
