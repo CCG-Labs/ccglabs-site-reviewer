@@ -243,4 +243,47 @@ describe("accessibility.axe", () => {
     expect(outcome.findings[0]?.message).toContain("axe-core");
     expect(runAxeCalls).toBe(1); // page two was never scanned
   });
+
+  it("warns on a page whose axe scan rejects and still scans the remaining pages", async () => {
+    const outcome = await axeCheck.run(
+      contextFor([{ url: "https://x.com/" }, { url: "https://x.com/two" }], {
+        "https://x.com/": { throwOnAxe: "Execution context was destroyed" },
+        "https://x.com/two": {
+          axe: {
+            available: true,
+            violations: [
+              {
+                id: "image-alt",
+                impact: "critical",
+                help: "Images must have alt text",
+                nodeCount: 1,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    const warning = outcome.findings.find((f) => f.severity === "warning");
+    expect(warning?.url).toBe("https://x.com/");
+    expect(warning?.message).toContain("could not complete");
+    expect(warning?.message).toContain("Execution context was destroyed");
+    const error = outcome.findings.find((f) => f.severity === "error");
+    expect(error?.url).toBe("https://x.com/two");
+    expect(error?.message).toContain("image-alt");
+    expect(outcome.score).toBe(50); // 2 pages, only /two has an error-severity violation
+  });
+
+  it("warns and still scores 100 when the only page's axe scan rejects", async () => {
+    const outcome = await axeCheck.run(
+      contextFor([{ url: "https://x.com/" }], {
+        "https://x.com/": { throwOnAxe: "Frame was detached" },
+      }),
+    );
+    expect(outcome.findings).toHaveLength(1);
+    expect(outcome.findings[0]?.severity).toBe("warning");
+    expect(outcome.findings[0]?.url).toBe("https://x.com/");
+    expect(outcome.findings[0]?.message).toContain("could not complete");
+    expect(outcome.findings[0]?.message).toContain("Frame was detached");
+    expect(outcome.score).toBe(100); // the page is not dirtied by a failed scan
+  });
 });

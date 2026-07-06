@@ -14,6 +14,8 @@ export interface FakePageScript {
   axe?: AxeRun;
   /** when set, goto() rejects with an Error carrying this message */
   throwOnGoto?: string;
+  /** when set, runAxe() rejects with an Error carrying this message */
+  throwOnAxe?: string;
 }
 
 /** An in-memory BrowserProvider that replays scripted per-URL events. No Chromium. */
@@ -50,6 +52,7 @@ export function fakeBrowser(scripted: Record<string, FakePageScript>): BrowserPr
           return Promise.resolve(script.content ?? "<html></html>");
         },
         runAxe() {
+          if (script.throwOnAxe !== undefined) return Promise.reject(new Error(script.throwOnAxe));
           return Promise.resolve(script.axe ?? { available: true, violations: [] });
         },
         close() {

@@ -70,4 +70,13 @@ describe("fakeBrowser", () => {
     await page.goto("https://x.com/");
     expect(await page.runAxe()).toEqual({ available: true, violations: [] });
   });
+
+  it("rejects runAxe with the scripted error when throwOnAxe is set", async () => {
+    const browser = fakeBrowser({
+      "https://x.com/": { throwOnAxe: "Execution context was destroyed" },
+    });
+    const page = await browser.newPage();
+    await page.goto("https://x.com/");
+    await expect(page.runAxe()).rejects.toThrow("Execution context was destroyed");
+  });
 });

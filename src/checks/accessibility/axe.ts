@@ -1,5 +1,5 @@
 import { samplePages } from "../../browser/sample.js";
-import type { AxeViolation } from "../../browser/types.js";
+import type { AxeRun, AxeViolation } from "../../browser/types.js";
 import type { Check, CheckContext, Finding } from "../../types.js";
 
 const DEFAULT_STANDARD = ["wcag2a", "wcag2aa"];
@@ -50,45 +50,61 @@ export const axeCheck: Check = {
     for (const target of targets) {
       const page = await browser.newPage();
       try {
-        await page.goto(target.url);
-      } catch (error) {
-        findings.push({
-          severity: "warning",
-          url: target.url,
-          message: `Page could not be loaded for the accessibility scan: ${error instanceof Error ? error.message : String(error)}`,
-          recommendation: "Re-run; if this persists the page may hang or block automated browsers.",
-        });
+        try {
+          await page.goto(target.url);
+        } catch (error) {
+          findings.push({
+            severity: "warning",
+            url: target.url,
+            message: `Page could not be loaded for the accessibility scan: ${error instanceof Error ? error.message : String(error)}`,
+            recommendation:
+              "Re-run; if this persists the page may hang or block automated browsers.",
+          });
+          continue;
+        }
+
+        let run: AxeRun;
+        try {
+          run = await page.runAxe({ standard: options.standard, ignore: options.ignore });
+        } catch (error) {
+          findings.push({
+            severity: "warning",
+            url: target.url,
+            message: `The accessibility scan could not complete on ${target.url}: ${error instanceof Error ? error.message : String(error)}`,
+            recommendation:
+              "This is likely a transient page condition — re-run, or investigate if persistent.",
+          });
+          continue;
+        }
+
+        if (!run.available) {
+          return {
+            score: 100,
+            findings: [
+              {
+                severity: "warning",
+                url: ctx.baseUrl,
+                message: "axe-core is not installed, so the accessibility scan did not run.",
+                recommendation:
+                  "Run: npm i -D @axe-core/playwright to enable the accessibility scan.",
+              },
+            ],
+          };
+        }
+
+        for (const violation of run.violations) {
+          const severity = severityFor(violation.impact);
+          findings.push({
+            severity,
+            url: target.url,
+            message: `${violation.id} (${violation.impact ?? "unknown"}): ${violation.help} — ${String(violation.nodeCount)} element(s).`,
+            recommendation:
+              "Fix the flagged elements; see the axe rule reference at https://dequeuniversity.com/rules/axe.",
+          });
+          if (severity === "error") pagesWithErrors.add(target.url);
+        }
+      } finally {
         await page.close();
-        continue;
-      }
-      const run = await page.runAxe({ standard: options.standard, ignore: options.ignore });
-      await page.close();
-
-      if (!run.available) {
-        return {
-          score: 100,
-          findings: [
-            {
-              severity: "warning",
-              url: ctx.baseUrl,
-              message: "axe-core is not installed, so the accessibility scan did not run.",
-              recommendation:
-                "Run: npm i -D @axe-core/playwright to enable the accessibility scan.",
-            },
-          ],
-        };
-      }
-
-      for (const violation of run.violations) {
-        const severity = severityFor(violation.impact);
-        findings.push({
-          severity,
-          url: target.url,
-          message: `${violation.id} (${violation.impact ?? "unknown"}): ${violation.help} — ${String(violation.nodeCount)} element(s).`,
-          recommendation:
-            "Fix the flagged elements; see the axe rule reference at https://dequeuniversity.com/rules/axe.",
-        });
-        if (severity === "error") pagesWithErrors.add(target.url);
       }
     }
 
