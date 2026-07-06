@@ -71,7 +71,17 @@ describe("runCli", () => {
     });
     const io = captureIo();
     const code = await runCli(
-      [server.url, "--env", "ci", "--skip", "functionality.reachable", "--format", "json"],
+      [
+        server.url,
+        "--env",
+        "ci",
+        // performance.lighthouse is unrelated to this test and would otherwise pay for a
+        // real Lighthouse audit.
+        "--skip",
+        "functionality.reachable,performance.lighthouse",
+        "--format",
+        "json",
+      ],
       io,
     );
     expect(code).toBe(0);
