@@ -11,6 +11,10 @@ afterEach(async () => {
   server = undefined;
 });
 
+// These integration tests exercise other checks in "ci"/"production" and don't care about
+// performance.lighthouse; disabling it keeps them from paying for a real Lighthouse audit.
+const NO_LIGHTHOUSE = { checks: { "performance.lighthouse": false } };
+
 describe("runReview", () => {
   it("produces a schema-valid passing report for a healthy site", async () => {
     server = await startServer((req, res) => {
@@ -120,7 +124,7 @@ describe("runReview", () => {
         res.end("<html><head></head><body>no meta at all</body></html>");
       }
     });
-    const report = await runReview({ url: server.url, environment: "ci" });
+    const report = await runReview({ url: server.url, environment: "ci", config: NO_LIGHTHOUSE });
     const seo = report.categories.find((category) => category.id === "seo");
     const check = seo?.checks.find((entry) => entry.id === "seo.meta-tags");
     expect(check?.status).toBe("fail");
@@ -140,7 +144,7 @@ describe("runReview", () => {
         '<html lang="en"><head><title>Home</title><meta name="description" content="A perfectly reasonable description that sits comfortably within the limits."><link rel="canonical" href="/"><link rel="stylesheet" href="/missing.css"></head><body><h1>Hi</h1><a href="/gone">gone</a></body></html>',
       );
     });
-    const report = await runReview({ url: server.url, environment: "ci" });
+    const report = await runReview({ url: server.url, environment: "ci", config: NO_LIGHTHOUSE });
     const functionality = report.categories.find((category) => category.id === "functionality");
     const check = functionality?.checks.find((entry) => entry.id === "functionality.links");
     expect(check?.status).toBe("fail");
@@ -166,7 +170,7 @@ describe("runReview", () => {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
     });
-    const report = await runReview({ url: server.url, environment: "ci" });
+    const report = await runReview({ url: server.url, environment: "ci", config: NO_LIGHTHOUSE });
     const seo = report.categories.find((category) => category.id === "seo");
     const check = seo?.checks.find((entry) => entry.id === "seo.sitemap-robots");
     expect(check?.status).toBe("fail");
@@ -184,7 +188,7 @@ describe("runReview", () => {
         '<html lang="en"><head><title>t</title><script type="application/ld+json">{broken</script></head><body>ok</body></html>',
       );
     });
-    const report = await runReview({ url: server.url, environment: "ci" });
+    const report = await runReview({ url: server.url, environment: "ci", config: NO_LIGHTHOUSE });
     const seo = report.categories.find((category) => category.id === "seo");
     const check = seo?.checks.find((entry) => entry.id === "seo.structured-data");
     expect(check?.status).toBe("fail");
@@ -207,7 +211,7 @@ describe("runReview", () => {
         `<html lang="en"><head><title>t</title><meta property="og:title" content="T"><meta property="og:image" content="${server?.url ?? ""}/share.png"></head><body>ok</body></html>`,
       );
     });
-    const report = await runReview({ url: server.url, environment: "ci" });
+    const report = await runReview({ url: server.url, environment: "ci", config: NO_LIGHTHOUSE });
     const seo = report.categories.find((category) => category.id === "seo");
     const check = seo?.checks.find((entry) => entry.id === "seo.social-meta");
     expect(check?.status).toBe("fail");
@@ -223,7 +227,7 @@ describe("runReview", () => {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
     });
-    const report = await runReview({ url: server.url, environment: "ci" });
+    const report = await runReview({ url: server.url, environment: "ci", config: NO_LIGHTHOUSE });
     const security = report.categories.find((category) => category.id === "security");
     const headersCheck = security?.checks.find((entry) => entry.id === "security.headers");
     expect(
@@ -242,7 +246,7 @@ describe("runReview", () => {
         '<html lang="en"><head><title>t</title></head><body><p>Lorem ipsum dolor sit amet.</p><img src="/logo.png"></body></html>',
       );
     });
-    const report = await runReview({ url: server.url, environment: "ci" });
+    const report = await runReview({ url: server.url, environment: "ci", config: NO_LIGHTHOUSE });
     const content = report.categories.find((category) => category.id === "content");
     const placeholders = content?.checks.find((entry) => entry.id === "content.placeholders");
     const images = content?.checks.find((entry) => entry.id === "content.images");
@@ -267,7 +271,11 @@ describe("runReview", () => {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
     });
-    const report = await runReview({ url: server.url, environment: "production" });
+    const report = await runReview({
+      url: server.url,
+      environment: "production",
+      config: NO_LIGHTHOUSE,
+    });
     const functionality = report.categories.find((category) => category.id === "functionality");
     const security = report.categories.find((category) => category.id === "security");
     expect(
@@ -306,7 +314,7 @@ describe("runReview", () => {
         '<html lang="en"><head><title>t</title></head><body><script>undefinedFn()</script></body></html>',
       );
     });
-    const report = await runReview({ url: server.url, environment: "ci" });
+    const report = await runReview({ url: server.url, environment: "ci", config: NO_LIGHTHOUSE });
     const check = report.categories
       .find((c) => c.id === "functionality")
       ?.checks.find((e) => e.id === "functionality.console-errors");
@@ -346,11 +354,29 @@ describe("runReview", () => {
         '<html lang="en"><head><title>t</title></head><body><img src="/x.png"></body></html>',
       );
     });
-    const report = await runReview({ url: server.url, environment: "ci" });
+    const report = await runReview({ url: server.url, environment: "ci", config: NO_LIGHTHOUSE });
     const check = report.categories
       .find((c) => c.id === "accessibility")
       ?.checks.find((e) => e.id === "accessibility.axe");
     expect(check).toBeDefined();
     expect(check?.findings.some((f) => f.message.includes("image-alt"))).toBe(true);
   }, 30_000);
+
+  it("runs a real Lighthouse audit end-to-end when a browser is available", async () => {
+    const { probeBrowserCapability } = await import("../src/browser/lazy-browser.js");
+    if (!(await probeBrowserCapability())) return; // skip on a lean checkout
+    server = await startServer((_req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end('<html lang="en"><head><title>t</title></head><body>ok</body></html>');
+    });
+    // Deliberately does NOT use NO_LIGHTHOUSE — this test exists to exercise the real audit.
+    const report = await runReview({ url: server.url, environment: "ci" });
+    const check = report.categories
+      .find((c) => c.id === "performance")
+      ?.checks.find((e) => e.id === "performance.lighthouse");
+    expect(check).toBeDefined();
+    expect(check?.score).toBeGreaterThanOrEqual(0);
+    expect(check?.score).toBeLessThanOrEqual(100);
+    expect(report.skipped.some((skip) => skip.id === "performance.lighthouse")).toBe(false);
+  }, 120_000);
 });

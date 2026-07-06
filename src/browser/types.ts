@@ -21,6 +21,25 @@ export interface AxeRun {
   violations: AxeViolation[];
 }
 
+/** A distilled Lighthouse result — no lighthouse types leak past the driver seam. */
+export interface LighthouseRun {
+  /** false when the lighthouse peer dep could not be imported */
+  available: boolean;
+  /** category scores 0–100; null when Lighthouse could not score a category */
+  categories: {
+    performance: number | null;
+    accessibility: number | null;
+    bestPractices: number | null;
+    seo: number | null;
+  };
+  /** lab metrics; TBT stands in for INP (INP needs field data) */
+  metrics: {
+    lcpMs: number | null;
+    cls: number | null;
+    tbtMs: number | null;
+  };
+}
+
 /**
  * A single isolated browser page. Handlers must be registered BEFORE goto().
  * Backed by a real Playwright page in production, a fake in tests — no check
@@ -46,6 +65,8 @@ export interface BrowserPage {
 export interface BrowserProvider {
   /** a fresh isolated page; the engine tracks and closes it at teardown */
   newPage(): Promise<BrowserPage>;
+  /** run Lighthouse against a URL over the shared browser's CDP port; available:false when the lighthouse peer dep is absent */
+  runLighthouse(url: string): Promise<LighthouseRun>;
 }
 
 /** Thrown by the provider when the browser is present-but-unlaunchable (e.g. Chromium not installed). */
