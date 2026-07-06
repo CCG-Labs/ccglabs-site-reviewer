@@ -29,6 +29,7 @@ The browser-tier spec sketched `cdpEndpoint(): Promise<string>` on `BrowserProvi
 ### Task 1: runLighthouse seam (types + fake + driver + lazy forwarding + smoke test)
 
 **Files:**
+
 - Modify: `src/browser/types.ts`
 - Modify: `src/browser/playwright-driver.ts`
 - Modify: `src/browser/lazy-browser.ts`
@@ -37,6 +38,7 @@ The browser-tier spec sketched `cdpEndpoint(): Promise<string>` on `BrowserProvi
 - Test: `tests/fake-browser.test.ts`, `tests/browser/driver-smoke.test.ts`
 
 **Interfaces:**
+
 - Produces: `LighthouseRun`, `BrowserProvider.runLighthouse(url: string): Promise<LighthouseRun>`, `FakePageScript.lighthouse?: LighthouseRun | LighthouseRun[]`, `FakePageScript.throwOnLighthouse?: string`.
 
 **Lesson from PR 13:** adding a method to a browser interface forces the driver, lazy wrapper, AND fake to implement it in the same commit — this task deliberately bundles all of them.
@@ -330,11 +332,13 @@ git commit -m "feat: add runLighthouse to the browser provider over a private CD
 ### Task 2: the performance.lighthouse check
 
 **Files:**
+
 - Create: `src/checks/performance/lighthouse.ts`
 - Modify: `src/engine/registry.ts` (register after `axeCheck`)
 - Test: `tests/check-lighthouse.test.ts`
 
 **Interfaces:**
+
 - Consumes: `BrowserProvider.runLighthouse(url)`, `LighthouseRun` (Task 1); `Check`/`CheckContext`/`Finding` from `src/types.ts`; config via `ctx.config.checks["performance.lighthouse"]?.options`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -385,7 +389,10 @@ const CATEGORY_LABELS: Record<CategoryKey, string> = {
 };
 
 /** Google's "good" thresholds; TBT stands in for INP in lab data. */
-const METRIC_DEFAULTS: Record<MetricKey, { max: number; label: string; format: (v: number) => string }> = {
+const METRIC_DEFAULTS: Record<
+  MetricKey,
+  { max: number; label: string; format: (v: number) => string }
+> = {
   lcpMs: { max: 2500, label: "LCP", format: (v) => `${String(Math.round(v))} ms` },
   cls: { max: 0.1, label: "CLS", format: (v) => v.toFixed(3) },
   tbtMs: { max: 200, label: "TBT (INP lab proxy)", format: (v) => `${String(Math.round(v))} ms` },
@@ -402,7 +409,10 @@ function lighthouseOptions(ctx: CheckContext): LighthouseOptions {
   const raw = ctx.config.checks["performance.lighthouse"]?.options;
   const num = (value: unknown): number | undefined =>
     typeof value === "number" && Number.isFinite(value) ? value : undefined;
-  const numRecord = <K extends string>(value: unknown, keys: readonly K[]): Partial<Record<K, number>> => {
+  const numRecord = <K extends string>(
+    value: unknown,
+    keys: readonly K[],
+  ): Partial<Record<K, number>> => {
     const out: Partial<Record<K, number>> = {};
     if (typeof value !== "object" || value === null) return out;
     for (const key of keys) {
@@ -417,7 +427,12 @@ function lighthouseOptions(ctx: CheckContext): LighthouseOptions {
   return {
     urls,
     runs: Math.max(1, Math.round(num(raw?.["runs"]) ?? 1)),
-    minScores: numRecord(raw?.["minScores"], ["performance", "accessibility", "bestPractices", "seo"]),
+    minScores: numRecord(raw?.["minScores"], [
+      "performance",
+      "accessibility",
+      "bestPractices",
+      "seo",
+    ]),
     maxMetrics: numRecord(raw?.["maxMetrics"], ["lcpMs", "cls", "tbtMs"]),
   };
 }
@@ -547,7 +562,11 @@ export const lighthouseCheck: Check = {
         }
       }
 
-      ctx.logger.debug("Lighthouse audit", { url, categories: run.categories, metrics: run.metrics });
+      ctx.logger.debug("Lighthouse audit", {
+        url,
+        categories: run.categories,
+        metrics: run.metrics,
+      });
     }
 
     const errors = findings.filter((f) => f.severity === "error").length;
@@ -577,6 +596,7 @@ git commit -m "feat: add performance.lighthouse check with advisory budgets"
 ### Task 3: README + integration test + PR
 
 **Files:**
+
 - Modify: `README.md`
 - Test: `tests/run-review.test.ts` (append to the existing self-skipping real-Chromium describe block)
 
@@ -587,6 +607,7 @@ Append to the real-browser describe block in `tests/run-review.test.ts` (mirror 
 - [ ] **Step 2: README**
 
 In the "Browser checks (optional)" section:
+
 - Intro sentence: move Lighthouse out of "later releases" (which then reads "and — in a later release — analytics").
 - Add a table row after `accessibility.axe`:
 

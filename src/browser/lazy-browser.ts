@@ -1,4 +1,4 @@
-import type { BrowserPage, BrowserProvider } from "./types.js";
+import type { BrowserPage, BrowserProvider, LighthouseRun } from "./types.js";
 
 /** True iff the browser peer dependency can be imported. */
 export async function probeBrowserCapability(
@@ -36,6 +36,9 @@ export function createLazyBrowser(driverFactory: () => Promise<Driver>): {
     provider: {
       async newPage(): Promise<BrowserPage> {
         return (await ensure()).provider.newPage();
+      },
+      async runLighthouse(url: string): Promise<LighthouseRun> {
+        return (await ensure()).provider.runLighthouse(url);
       },
     },
     async teardown(): Promise<void> {

@@ -79,4 +79,45 @@ describe("fakeBrowser", () => {
     await page.goto("https://x.com/");
     await expect(page.runAxe()).rejects.toThrow("Execution context was destroyed");
   });
+
+  it("replays a scripted lighthouse result", async () => {
+    const lighthouse = {
+      available: true,
+      categories: { performance: 55, accessibility: 90, bestPractices: 100, seo: 100 },
+      metrics: { lcpMs: 3100, cls: 0.02, tbtMs: 150 },
+    };
+    const browser = fakeBrowser({ "https://x.com/": { content: "<html></html>", lighthouse } });
+    await expect(browser.runLighthouse("https://x.com/")).resolves.toEqual(lighthouse);
+  });
+
+  it("defaults to a perfect available lighthouse run when unscripted", async () => {
+    const browser = fakeBrowser({ "https://x.com/": { content: "<html></html>" } });
+    const run = await browser.runLighthouse("https://x.com/");
+    expect(run.available).toBe(true);
+    expect(run.categories.performance).toBe(100);
+    expect(run.metrics.cls).toBe(0);
+  });
+
+  it("consumes an array of scripted lighthouse results in order", async () => {
+    const mk = (perf: number) => ({
+      available: true,
+      categories: { performance: perf, accessibility: 100, bestPractices: 100, seo: 100 },
+      metrics: { lcpMs: 1000, cls: 0, tbtMs: 0 },
+    });
+    const browser = fakeBrowser({
+      "https://x.com/": { content: "<html></html>", lighthouse: [mk(40), mk(60), mk(50)] },
+    });
+    expect((await browser.runLighthouse("https://x.com/")).categories.performance).toBe(40);
+    expect((await browser.runLighthouse("https://x.com/")).categories.performance).toBe(60);
+    expect((await browser.runLighthouse("https://x.com/")).categories.performance).toBe(50);
+    // array exhausted → repeats the last entry
+    expect((await browser.runLighthouse("https://x.com/")).categories.performance).toBe(50);
+  });
+
+  it("rejects runLighthouse when scripted with throwOnLighthouse", async () => {
+    const browser = fakeBrowser({
+      "https://x.com/": { content: "<html></html>", throwOnLighthouse: "PROTOCOL_TIMEOUT" },
+    });
+    await expect(browser.runLighthouse("https://x.com/")).rejects.toThrow("PROTOCOL_TIMEOUT");
+  });
 });
