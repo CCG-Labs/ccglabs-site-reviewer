@@ -1,4 +1,9 @@
-import type { BrowserPage, BrowserProvider, FailedRequest } from "../../src/browser/types.js";
+import type {
+  AxeRun,
+  BrowserPage,
+  BrowserProvider,
+  FailedRequest,
+} from "../../src/browser/types.js";
 
 export interface FakePageScript {
   status?: number;
@@ -6,6 +11,7 @@ export interface FakePageScript {
   failedRequests?: FailedRequest[];
   requests?: Array<{ url: string; method: string }>;
   content?: string;
+  axe?: AxeRun;
   /** when set, goto() rejects with an Error carrying this message */
   throwOnGoto?: string;
 }
@@ -42,6 +48,9 @@ export function fakeBrowser(scripted: Record<string, FakePageScript>): BrowserPr
         },
         content() {
           return Promise.resolve(script.content ?? "<html></html>");
+        },
+        runAxe() {
+          return Promise.resolve(script.axe ?? { available: true, violations: [] });
         },
         close() {
           return Promise.resolve();

@@ -4,6 +4,23 @@ export interface FailedRequest {
   failure: string;
 }
 
+/** A distilled axe-core violation — no axe types leak past the driver seam. */
+export interface AxeViolation {
+  /** axe rule id, e.g. "color-contrast" */
+  id: string;
+  impact: "critical" | "serious" | "moderate" | "minor" | null;
+  /** human-readable rule description */
+  help: string;
+  /** number of DOM elements failing this rule on the page */
+  nodeCount: number;
+}
+
+export interface AxeRun {
+  /** false when @axe-core/playwright could not be imported */
+  available: boolean;
+  violations: AxeViolation[];
+}
+
 /**
  * A single isolated browser page. Handlers must be registered BEFORE goto().
  * Backed by a real Playwright page in production, a fake in tests — no check
@@ -20,6 +37,8 @@ export interface BrowserPage {
   goto(url: string): Promise<number>;
   /** the rendered HTML after scripts run */
   content(): Promise<string>;
+  /** run an axe-core scan against the current page; available:false when the axe peer dep is absent */
+  runAxe(options?: { standard?: string[]; ignore?: string[] }): Promise<AxeRun>;
   /** close this page and its context */
   close(): Promise<void>;
 }
