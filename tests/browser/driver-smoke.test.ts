@@ -62,4 +62,28 @@ describe.skipIf(!hasBrowser)("playwright driver (real Chromium)", () => {
       await driver.teardown();
     }
   }, 30_000);
+
+  it("runs a real axe scan and reports violations", async () => {
+    const server2 = createServer((_req, res) => {
+      res.setHeader("content-type", "text/html");
+      res.end('<html lang="en"><body><img src="/x.png"></body></html>');
+    });
+    await new Promise<void>((r) => server2.listen(0, "127.0.0.1", r));
+    const axeUrl = `http://127.0.0.1:${String((server2.address() as AddressInfo).port)}/`;
+    const driver = await createPlaywrightDriver();
+    try {
+      const page = await driver.provider.newPage();
+      await page.goto(axeUrl);
+      const run = await page.runAxe({ standard: ["wcag2a"] });
+      expect(run.available).toBe(true);
+      expect(run.violations.some((v) => v.id === "image-alt")).toBe(true);
+    } finally {
+      await driver.teardown();
+      await new Promise<void>((r) => {
+        server2.close(() => {
+          r();
+        });
+      });
+    }
+  }, 30_000);
 });

@@ -40,4 +40,43 @@ describe("fakeBrowser", () => {
     expect(await page.goto("https://x.com/unknown")).toBe(200);
     expect(errors).toEqual([]);
   });
+
+  it("replays a scripted axe run", async () => {
+    const browser = fakeBrowser({
+      "https://x.com/": {
+        axe: {
+          available: true,
+          violations: [
+            {
+              id: "color-contrast",
+              impact: "serious",
+              help: "Elements must have sufficient color contrast",
+              nodeCount: 3,
+            },
+          ],
+        },
+      },
+    });
+    const page = await browser.newPage();
+    await page.goto("https://x.com/");
+    const run = await page.runAxe();
+    expect(run.available).toBe(true);
+    expect(run.violations[0]?.id).toBe("color-contrast");
+  });
+
+  it("defaults runAxe to available with no violations for an unscripted page", async () => {
+    const browser = fakeBrowser({});
+    const page = await browser.newPage();
+    await page.goto("https://x.com/");
+    expect(await page.runAxe()).toEqual({ available: true, violations: [] });
+  });
+
+  it("rejects runAxe with the scripted error when throwOnAxe is set", async () => {
+    const browser = fakeBrowser({
+      "https://x.com/": { throwOnAxe: "Execution context was destroyed" },
+    });
+    const page = await browser.newPage();
+    await page.goto("https://x.com/");
+    await expect(page.runAxe()).rejects.toThrow("Execution context was destroyed");
+  });
 });

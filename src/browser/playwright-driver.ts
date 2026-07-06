@@ -1,5 +1,6 @@
 import {
   BrowserLaunchError,
+  type AxeRun,
   type BrowserPage,
   type BrowserProvider,
   type FailedRequest,
@@ -66,6 +67,31 @@ export async function createPlaywrightDriver(): Promise<{
         },
         async content() {
           return page.content();
+        },
+        async runAxe(options = {}): Promise<AxeRun> {
+          let AxeBuilder;
+          try {
+            ({ default: AxeBuilder } = await import("@axe-core/playwright"));
+          } catch {
+            return { available: false, violations: [] };
+          }
+          let builder = new AxeBuilder({ page });
+          if (options.standard !== undefined && options.standard.length > 0) {
+            builder = builder.withTags(options.standard);
+          }
+          if (options.ignore !== undefined && options.ignore.length > 0) {
+            builder = builder.disableRules(options.ignore);
+          }
+          const results = await builder.analyze();
+          return {
+            available: true,
+            violations: results.violations.map((violation) => ({
+              id: violation.id,
+              impact: violation.impact ?? null,
+              help: violation.help,
+              nodeCount: violation.nodes.length,
+            })),
+          };
         },
         async close() {
           await context.close();

@@ -6,5 +6,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  external: ["playwright", "lighthouse"],
+  external: ["playwright", "lighthouse", "@axe-core/playwright"],
 });
