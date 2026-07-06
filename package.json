@@ -22,14 +22,18 @@
     "dist"
   ],
   "peerDependencies": {
+    "lighthouse": ">=11 <13",
     "playwright": ">=1.40.0 <2",
-    "lighthouse": ">=11 <13"
+    "@axe-core/playwright": ">=4 <5"
   },
   "peerDependenciesMeta": {
     "playwright": {
       "optional": true
     },
     "lighthouse": {
+      "optional": true
+    },
+    "@axe-core/playwright": {
       "optional": true
     }
   },
@@ -45,6 +49,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.4",
+    "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.1.0",
     "@vitest/coverage-v8": "^4.1.9",

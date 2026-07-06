@@ -68,41 +68,30 @@ export async function createPlaywrightDriver(): Promise<{
         async content() {
           return page.content();
         },
-        async runAxe(options): Promise<AxeRun> {
-          let axeModule: unknown;
+        async runAxe(options = {}): Promise<AxeRun> {
+          let AxeBuilder;
           try {
-            // @ts-expect-error — @axe-core/playwright is an optional peer dep
-            axeModule = await import("@axe-core/playwright"); // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+            ({ default: AxeBuilder } = await import("@axe-core/playwright"));
           } catch {
             return { available: false, violations: [] };
           }
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
-            const { injectAxe, getViolations } = axeModule as any;
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-            await injectAxe(page);
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-            const rawViolations = await getViolations(page, options?.standard, options?.ignore); // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const violations = (rawViolations as any[]).map((v: any) => {
-              return {
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                id: v.id as string,
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                impact: v.impact as "critical" | "serious" | "moderate" | "minor" | null,
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                help: v.help as string,
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                nodeCount: (v.nodes as unknown[]).length,
-              };
-            });
-            return {
-              available: true,
-              violations,
-            };
-          } catch {
-            return { available: true, violations: [] };
+          let builder = new AxeBuilder({ page });
+          if (options.standard !== undefined && options.standard.length > 0) {
+            builder = builder.withTags(options.standard);
           }
+          if (options.ignore !== undefined && options.ignore.length > 0) {
+            builder = builder.disableRules(options.ignore);
+          }
+          const results = await builder.analyze();
+          return {
+            available: true,
+            violations: results.violations.map((violation) => ({
+              id: violation.id,
+              impact: violation.impact ?? null,
+              help: violation.help,
+              nodeCount: violation.nodes.length,
+            })),
+          };
         },
         async close() {
           await context.close();
