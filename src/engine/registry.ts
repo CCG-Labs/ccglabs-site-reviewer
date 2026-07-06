@@ -1,3 +1,4 @@
+import { axeCheck } from "../checks/accessibility/axe.js";
 import { imagesCheck } from "../checks/content/images.js";
 import { placeholdersCheck } from "../checks/content/placeholders.js";
 import { consoleErrorsCheck } from "../checks/functionality/console-errors.js";
@@ -19,6 +20,7 @@ export const builtinChecks: Check[] = [
   crawlCoverageCheck,
   errorPagesCheck,
   consoleErrorsCheck,
+  axeCheck,
   linksCheck,
   metaTagsCheck,
   sitemapRobotsCheck,
