@@ -379,4 +379,42 @@ describe("runReview", () => {
     expect(check?.score).toBeLessThanOrEqual(100);
     expect(report.skipped.some((skip) => skip.id === "performance.lighthouse")).toBe(false);
   }, 120_000);
+
+  it("detects an analytics beacon end-to-end when a browser is available", async () => {
+    const { probeBrowserCapability } = await import("../src/browser/lazy-browser.js");
+    if (!(await probeBrowserCapability())) return; // skip on a lean checkout
+    // Two-hostname trick, one server: the page loads at 127.0.0.1 (server.url) and fires a
+    // beacon at http://localhost:<port>/beacon — a different hostname on the same server.
+    // Configuring hosts: ["localhost"] then counts only the beacon; the page's own same-host
+    // requests (navigation, etc.) use 127.0.0.1 and don't match.
+    server = await startServer((req, res) => {
+      if (req.url === "/beacon") {
+        res.end("ok");
+        return;
+      }
+      const port = req.headers.host?.split(":")[1] ?? "";
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(
+        `<html lang="en"><head><title>t</title></head><body><script>fetch("http://localhost:${port}/beacon");</script></body></html>`,
+      );
+    });
+    // production is required for operations.analytics to run; lighthouse is disabled since
+    // production would otherwise pay for a real ~7s audit.
+    const report = await runReview({
+      url: server.url,
+      environment: "production",
+      config: {
+        checks: {
+          "performance.lighthouse": false,
+          "operations.analytics": { options: { hosts: ["localhost"], settleMs: 500 } },
+        },
+      },
+    });
+    const check = report.categories
+      .find((c) => c.id === "operations")
+      ?.checks.find((e) => e.id === "operations.analytics");
+    expect(check?.status).toBe("pass");
+    expect(check?.score).toBe(100);
+    expect(check?.findings).toEqual([]);
+  }, 60_000);
 });

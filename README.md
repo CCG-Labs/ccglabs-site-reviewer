@@ -64,6 +64,7 @@ separately reports what search engines will and won't be allowed to crawl.
 | `functionality.console-errors` | pages load with no uncaught JS errors (error) or failed resource requests (warning) — needs the browser extras                                                                                                           |
 | `accessibility.axe`            | automated axe-core WCAG scan (critical/serious → error, moderate → warning) — needs the browser extras; catches ~30–50% of issues, not a full a11y audit                                                                 |
 | `performance.lighthouse`       | Lighthouse category scores + Core Web Vitals (LCP/CLS/TBT) over the shared Chromium. Lab data; advisory warnings by default — set `minScores`/`maxMetrics` budgets to enforce as errors. Runs in `ci`/`production` only. |
+| `operations.analytics`         | Verifies analytics fires (GA4/Plausible/Fathom auto-detected, or configured) with the right property ID and no double-firing. URL-based detection. Runs in `production` only.                                            |
 | `security.sensitive-files`     | probes for publicly accessible `.env`, `.git`, backups, key files (ci + production)                                                                                                                                      |
 | `security.headers`             | OWASP security headers present with sane values, including on error responses (error in production, warning in ci)                                                                                                       |
 | `security.tls`                 | https enforced, certificate valid and >30 days from expiry, no mixed content (production only)                                                                                                                           |
@@ -88,9 +89,9 @@ Internal asset probing caps at 500 unique URLs per run, external at 50; overflow
 ## Browser checks (optional)
 
 Checks that need a real browser (`functionality.console-errors`,
-`accessibility.axe`, `performance.lighthouse`, and — in a later release —
-analytics) are **off by default** to
-keep the base install lean. Enable them by installing the browser extras:
+`accessibility.axe`, `performance.lighthouse`, `operations.analytics`) are
+**off by default** to keep the base install lean. Enable them by installing
+the browser extras:
 
 ```bash
 npm i -D playwright lighthouse @axe-core/playwright
@@ -114,6 +115,25 @@ export default {
         runs: 3, // median-of-3 (default 1)
         minScores: { performance: 80 }, // breach = error (default: advisory warning below 90)
         maxMetrics: { lcpMs: 3000, cls: 0.1, tbtMs: 300 }, // breach = error
+      },
+    },
+  },
+};
+```
+
+`operations.analytics` runs in `production` only and samples the base URL
+plus one deep page:
+
+```js
+// site-review.config.js
+export default {
+  checks: {
+    "operations.analytics": {
+      options: {
+        provider: "ga4", // restrict detection (default: auto-detect ga4/plausible/fathom)
+        propertyId: "G-PROD456", // warn if a different ID fires (staging leak)
+        hosts: ["stats.example.com"], // self-hosted endpoints counted as hits
+        settleMs: 2000, // post-load wait for async beacons (default 2000)
       },
     },
   },
