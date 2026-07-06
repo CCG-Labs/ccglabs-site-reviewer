@@ -22,11 +22,13 @@
 ### Task 1: the operations.analytics check
 
 **Files:**
+
 - Create: `src/checks/operations/analytics.ts`
 - Modify: `src/engine/registry.ts` (register after `lighthouseCheck`)
 - Test: `tests/check-analytics.test.ts`
 
 **Interfaces:**
+
 - Consumes: `BrowserPage.onRequest(handler(url, method))` and `samplePages` (existing); `FakePageScript.requests?: Array<{url, method}>` (existing — fires handlers during `goto`).
 - Produces: nothing consumed by later tasks beyond the registered check.
 
@@ -154,9 +156,18 @@ interface PageObservation {
   observedIds: Set<string>;
 }
 
-function observe(requests: Array<{ url: string; method: string }>, options: AnalyticsOptions): PageObservation {
-  const specs = options.provider === undefined ? Object.values(PROVIDERS) : [PROVIDERS[options.provider]];
-  const result: PageObservation = { hits: 0, pageviews: 0, loaderSeen: false, observedIds: new Set() };
+function observe(
+  requests: Array<{ url: string; method: string }>,
+  options: AnalyticsOptions,
+): PageObservation {
+  const specs =
+    options.provider === undefined ? Object.values(PROVIDERS) : [PROVIDERS[options.provider]];
+  const result: PageObservation = {
+    hits: 0,
+    pageviews: 0,
+    loaderSeen: false,
+    observedIds: new Set(),
+  };
   for (const request of requests) {
     let url: URL;
     try {
@@ -243,7 +254,9 @@ export const analyticsCheck: Check = {
         if (
           options.propertyId !== undefined &&
           seen.observedIds.size > 0 &&
-          ![...seen.observedIds].some((id) => id.toLowerCase() === options.propertyId?.toLowerCase())
+          ![...seen.observedIds].some(
+            (id) => id.toLowerCase() === options.propertyId?.toLowerCase(),
+          )
         ) {
           findings.push({
             severity: "warning",
@@ -305,6 +318,7 @@ git commit -m "feat: add operations.analytics check with provider auto-detection
 ### Task 2: README + integration test + PR
 
 **Files:**
+
 - Modify: `README.md`
 - Test: `tests/run-review.test.ts` (append to the self-skipping real-Chromium describe block)
 
@@ -313,7 +327,13 @@ git commit -m "feat: add operations.analytics check with provider auto-detection
 Append to the real-browser block in `tests/run-review.test.ts`. Fixture trick — one server, two hostnames: serve the page on `127.0.0.1:<port>` whose HTML fires a beacon to `http://localhost:<port>/beacon` (different hostname, same server), and configure `hosts: ["localhost"]` so only the beacon counts as analytics (the page's own same-host requests use `127.0.0.1` and do not match):
 
 ```html
-<html><body><script>fetch("http://localhost:PORT/beacon");</script></body></html>
+<html>
+  <body>
+    <script>
+      fetch("http://localhost:PORT/beacon");
+    </script>
+  </body>
+</html>
 ```
 
 Run a review with `environment: "production"`, `checks: { "performance.lighthouse": false, "operations.analytics": { options: { hosts: ["localhost"], settleMs: 500 } } }` (lighthouse disabled — production env would otherwise run a real ~7s audit), plus whatever check-scoping the existing e2es use. Assert the report's `operations` category contains `operations.analytics` with score 100 and no findings (the beacon was detected). Timeout 60_000. Verify it genuinely runs (not skipped) before committing.
@@ -321,6 +341,7 @@ Run a review with `environment: "production"`, `checks: { "performance.lighthous
 - [ ] **Step 2: README**
 
 In "Browser checks (optional)":
+
 - Intro sentence: remove the "in a later release" clause entirely — all four browser checks now ship (`functionality.console-errors`, `accessibility.axe`, `performance.lighthouse`, `operations.analytics`).
 - Table row after `performance.lighthouse`:
 

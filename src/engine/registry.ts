@@ -6,6 +6,7 @@ import { crawlCoverageCheck } from "../checks/functionality/crawl-coverage.js";
 import { errorPagesCheck } from "../checks/functionality/error-pages.js";
 import { linksCheck } from "../checks/functionality/links.js";
 import { reachableCheck } from "../checks/functionality/reachable.js";
+import { analyticsCheck } from "../checks/operations/analytics.js";
 import { lighthouseCheck } from "../checks/performance/lighthouse.js";
 import { metaTagsCheck } from "../checks/seo/meta-tags.js";
 import { sitemapRobotsCheck } from "../checks/seo/sitemap-robots.js";
@@ -23,6 +24,7 @@ export const builtinChecks: Check[] = [
   consoleErrorsCheck,
   axeCheck,
   lighthouseCheck,
+  analyticsCheck,
   linksCheck,
   metaTagsCheck,
   sitemapRobotsCheck,
