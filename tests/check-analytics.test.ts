@@ -255,6 +255,22 @@ describe("operations.analytics", () => {
     expect(await analyticsCheck.run(ctx)).toEqual({ score: 100, findings: [] });
   });
 
+  it("custom hosts exempt from double-fire detection on loader+beacon", async () => {
+    const ctx = contextFor(
+      [{ url: "https://x.com/" }],
+      {
+        "https://x.com/": {
+          requests: [
+            { url: "https://stats.example.com/js/script.js", method: "GET" },
+            { url: "https://stats.example.com/api/event", method: "POST" },
+          ],
+        },
+      },
+      optionsConfig({ hosts: ["stats.example.com"] }),
+    );
+    expect(await analyticsCheck.run(ctx)).toEqual({ score: 100, findings: [] });
+  });
+
   it("warns on a page that fails to load without dirtying the run", async () => {
     const ctx = contextFor(
       [{ url: "https://x.com/" }, { url: "https://x.com/two" }],

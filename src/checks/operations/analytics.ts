@@ -112,8 +112,8 @@ function observe(
       continue;
     }
     if (options.hosts.some((suffix) => hostMatches(url.hostname, suffix))) {
+      // Custom hosts count as hits only — we can't tell loaders from beacons, so they're exempt from double-fire detection.
       result.hits += 1;
-      result.pageviews += 1;
       continue;
     }
     for (const spec of specs) {
