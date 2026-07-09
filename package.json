@@ -38,6 +38,7 @@
     }
   },
   "scripts": {
+    "prepare": "npm run build",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
