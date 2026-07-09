@@ -234,7 +234,7 @@ describe("seo.sitemap-robots", () => {
 
   const CHILD_SITEMAP = "https://example.com/sitemap-pages.xml";
 
-  it("merges entries from a same-origin child sitemap and ignores a cross-origin one", async () => {
+  it("merges entries from a same-origin child sitemap and warns (not errors) about a cross-origin one", async () => {
     const outcome = await sitemapRobotsCheck.run(
       contextFor(
         [
@@ -254,10 +254,19 @@ describe("seo.sitemap-robots", () => {
         },
       ),
     );
-    expect(outcome).toEqual({ score: 100, findings: [] });
+    // The good child's entries are still fully validated (no errors) — but a sitemap index
+    // that references a foreign-origin child is flagged, since that child never gets checked.
+    expect(outcome.findings.every((finding) => finding.severity === "warning")).toBe(true);
+    expect(
+      outcome.findings.some(
+        (finding) =>
+          finding.message.includes("2 child sitemap(s)") &&
+          finding.message.includes("1 could not be fetched"),
+      ),
+    ).toBe(true);
   });
 
-  it("tolerates an unreachable child sitemap", async () => {
+  it("errors when every child sitemap in an index is unreachable (previously silent)", async () => {
     const throwingFetch = (url: string): Promise<FetchResult> => {
       if (url === CHILD_SITEMAP) return Promise.reject(new Error("network down"));
       return routesFetch({
@@ -269,8 +278,94 @@ describe("seo.sitemap-robots", () => {
       ...contextFor([{ url: "https://example.com/", body: goodBody }], {}),
       fetch: throwingFetch,
     });
+    // A sitemap index pointing at nothing but dead children is as bad as no sitemap at all.
+    const errors = outcome.findings.filter((finding) => finding.severity === "error");
+    expect(errors.some((finding) => finding.message.includes("none could be fetched"))).toBe(true);
+  });
+
+  it("counts a 404'd child sitemap (not just a network error) as unreachable", async () => {
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor([{ url: "https://example.com/", body: goodBody }], {
+        [SITEMAP]: { status: 200, body: sitemapIndexXml([CHILD_SITEMAP]) },
+        // CHILD_SITEMAP deliberately left unstubbed -> 404 (not a thrown network error)
+        [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\n` },
+      }),
+    );
+    const errors = outcome.findings.filter((finding) => finding.severity === "error");
+    expect(errors.some((finding) => finding.message.includes("none could be fetched"))).toBe(true);
+  });
+
+  it("checks every sitemap robots.txt declares, not just the first", async () => {
+    const SECOND_SITEMAP = "https://example.com/sitemap-blog.xml";
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor([{ url: "https://example.com/", body: goodBody }], {
+        [SITEMAP]: { status: 200, body: sitemapXml(["https://example.com/"]) },
+        // SECOND_SITEMAP deliberately left unstubbed -> 404
+        [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\nSitemap: ${SECOND_SITEMAP}\n` },
+      }),
+    );
+    const warnings = outcome.findings.filter((finding) => finding.severity === "warning");
+    expect(
+      warnings.some(
+        (finding) =>
+          finding.url === SECOND_SITEMAP && finding.message.includes("could not be fetched"),
+      ),
+    ).toBe(true);
+    // the first, valid sitemap's entries are still fully validated — no errors, no missing pages
     expect(outcome.findings.some((finding) => finding.severity === "error")).toBe(false);
   });
+
+  it("passes cleanly when robots.txt declares a non-default sitemap path (the one-day-website scenario)", async () => {
+    const NON_DEFAULT = "https://example.com/sitemap-index.xml";
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor([{ url: "https://example.com/", body: goodBody }], {
+        [NON_DEFAULT]: { status: 200, body: sitemapXml(["https://example.com/"]) },
+        // /sitemap.xml deliberately left unstubbed -> 404; must not be consulted at all
+        [ROBOTS]: { status: 200, body: `Sitemap: ${NON_DEFAULT}\n` },
+      }),
+    );
+    expect(outcome).toEqual({ score: 100, findings: [] });
+  });
+
+  it("warns when a sitemap file (including a child sitemap inside an index) exceeds the sitemaps.org 50MB-per-file limit", async () => {
+    const hugeBody = `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/child-page</loc></url><!--${"x".repeat(51 * 1024 * 1024)}--></urlset>`;
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor(
+        [
+          { url: "https://example.com/", body: goodBody },
+          { url: "https://example.com/child-page", body: goodBody },
+        ],
+        {
+          [SITEMAP]: { status: 200, body: sitemapIndexXml([CHILD_SITEMAP]) },
+          [CHILD_SITEMAP]: { status: 200, body: hugeBody },
+          [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\n` },
+        },
+      ),
+    );
+    expect(
+      outcome.findings.some(
+        (finding) => finding.severity === "warning" && finding.message.includes("50MB-per-file"),
+      ),
+    ).toBe(true);
+  }, 15_000);
+
+  it("warns when a sitemap file exceeds the sitemaps.org 50,000-URL-per-file limit", async () => {
+    const manyUrls = Array.from(
+      { length: 50_001 },
+      (_unused, index) => `https://example.com/p${String(index)}`,
+    );
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor([{ url: "https://example.com/", body: goodBody }], {
+        [SITEMAP]: { status: 200, body: sitemapXml(manyUrls) },
+        [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\n` },
+      }),
+    );
+    expect(
+      outcome.findings.some(
+        (finding) => finding.severity === "warning" && finding.message.includes("50,000 URLs"),
+      ),
+    ).toBe(true);
+  }, 15_000);
 
   it("warns when robots.txt and sitemap.xml both fail to fetch (network error, not just 404)", async () => {
     const throwingFetch = (): Promise<FetchResult> => Promise.reject(new Error("boom"));

@@ -22,28 +22,16 @@ export function parseSitemapXml(xml: string): ParsedSitemap {
   };
 }
 
-/**
- * Seed URLs from <origin>/sitemap.xml. Supports a plain urlset and one level
- * of sitemapindex. Only page URLs within the allowed origins (default: the sitemap's own origin) are returned. Absence, errors,
- * and malformed XML all yield [] — a sitemap is a seed source, never a failure.
- */
-export async function fetchSitemapUrls(
+/** Fetch and parse one sitemap (following one level of sitemapindex). [] on any failure. */
+async function fetchOneSitemapPageUrls(
   fetchFn: RateLimitedFetch,
-  origin: string,
-  limit = 500,
-  allowedOrigins?: ReadonlySet<string>,
+  sitemapUrl: string,
+  sameOrigin: (raw: string) => string | undefined,
+  limit: number,
 ): Promise<string[]> {
-  const collected: string[] = [];
-  const allowed = allowedOrigins ?? new Set([new URL(origin).origin]);
-  const sameOrigin = (raw: string): string | undefined => {
-    const normalized = normalizePageUrl(raw);
-    if (normalized === undefined) return undefined;
-    return allowed.has(new URL(normalized).origin) ? normalized : undefined;
-  };
-
   let root: ParsedSitemap;
   try {
-    const response = await fetchFn(new URL("/sitemap.xml", origin).href);
+    const response = await fetchFn(sitemapUrl);
     if (response.status !== 200) return [];
     root = parseSitemapXml(response.body);
   } catch {
@@ -62,14 +50,41 @@ export async function fetchSitemapUrls(
       // skip unreachable child sitemaps
     }
   }
+  return pagePool;
+}
 
+/**
+ * Seed URLs from every sitemap in `sitemapUrls` (resolve which ones those are
+ * with `resolveSitemapUrls` first — this function no longer guesses). Supports
+ * a plain urlset and one level of sitemapindex per sitemap. Only page URLs
+ * within `allowedOrigins` are returned. Absence, errors, and malformed XML on
+ * any individual sitemap yield no entries from that sitemap — a sitemap is a
+ * seed source, never a failure.
+ */
+export async function fetchSitemapUrls(
+  fetchFn: RateLimitedFetch,
+  sitemapUrls: string[],
+  limit: number,
+  allowedOrigins: ReadonlySet<string>,
+): Promise<string[]> {
+  const sameOrigin = (raw: string): string | undefined => {
+    const normalized = normalizePageUrl(raw);
+    if (normalized === undefined) return undefined;
+    return allowedOrigins.has(new URL(normalized).origin) ? normalized : undefined;
+  };
+
+  const collected: string[] = [];
   const seen = new Set<string>();
-  for (const raw of pagePool) {
-    const url = sameOrigin(raw);
-    if (url !== undefined && !seen.has(url)) {
-      seen.add(url);
-      collected.push(url);
-      if (collected.length >= limit) break;
+  for (const sitemapUrl of sitemapUrls) {
+    if (collected.length >= limit) break;
+    const pageUrls = await fetchOneSitemapPageUrls(fetchFn, sitemapUrl, sameOrigin, limit);
+    for (const raw of pageUrls) {
+      const url = sameOrigin(raw);
+      if (url !== undefined && !seen.has(url)) {
+        seen.add(url);
+        collected.push(url);
+        if (collected.length >= limit) break;
+      }
     }
   }
   return collected;

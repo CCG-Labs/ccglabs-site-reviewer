@@ -6,6 +6,7 @@ import type {
   RateLimitedFetch,
 } from "../types.js";
 import { extractLinks } from "./extract-links.js";
+import { parseRobotsTxt, resolveSitemapUrls, type RobotsTxt } from "./robots.js";
 import { fetchSitemapUrls } from "./sitemap.js";
 import { normalizePageUrl } from "./url.js";
 
@@ -79,7 +80,18 @@ export async function crawlSite(options: CrawlOptions): Promise<PageStore> {
   };
 
   enqueue(base);
-  for (const url of await fetchSitemapUrls(fetchFn, new URL(base).origin, maxPages, allowedOrigins))
+
+  const origin = new URL(base).origin;
+  const robotsUrl = new URL("/robots.txt", origin).href;
+  let robots: RobotsTxt | undefined;
+  try {
+    const response = await fetchFn(robotsUrl);
+    if (response.status === 200) robots = parseRobotsTxt(response.body);
+  } catch {
+    // robots.txt unreachable — fall back to the default /sitemap.xml guess below
+  }
+  const { urls: sitemapUrls } = resolveSitemapUrls(robots, origin, robotsUrl, allowedOrigins);
+  for (const url of await fetchSitemapUrls(fetchFn, sitemapUrls, maxPages, allowedOrigins))
     enqueue(url);
 
   const visit = async (url: string): Promise<void> => {

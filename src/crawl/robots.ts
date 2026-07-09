@@ -1,3 +1,5 @@
+import { normalizePageUrl } from "./url.js";
+
 export interface RobotsTxt {
   /** literal + wildcard Disallow patterns from the `User-agent: *` group */
   wildcardDisallows: string[];
@@ -69,4 +71,36 @@ export function isDisallowed(url: string, robots: RobotsTxt): boolean {
   const disallow = longest(robots.wildcardDisallows);
   if (disallow === 0) return false;
   return disallow > longest(robots.wildcardAllows);
+}
+
+export interface ResolvedSitemaps {
+  /** deduped, same-origin sitemap URLs, in declaration order */
+  urls: string[];
+  /** "robots" when taken from a Sitemap: line, "default" when guessed */
+  source: "robots" | "default";
+}
+
+/**
+ * What sitemap(s) does this site declare? Prefers every same-origin `Sitemap:`
+ * line from robots.txt (a site can legally declare more than one); falls back
+ * to the conventional `/sitemap.xml` guess only when robots.txt declares
+ * nothing usable. Pure — callers fetch/parse robots.txt themselves and pass
+ * the result in, so this needs no I/O and is trivially testable.
+ */
+export function resolveSitemapUrls(
+  robots: RobotsTxt | undefined,
+  origin: string,
+  robotsUrl: string,
+  allowed: ReadonlySet<string>,
+): ResolvedSitemaps {
+  const declared = [
+    ...new Set(
+      (robots?.sitemaps ?? [])
+        .map((raw) => normalizePageUrl(raw, robotsUrl))
+        .filter((url): url is string => url !== undefined && allowed.has(new URL(url).origin)),
+    ),
+  ];
+  return declared.length > 0
+    ? { urls: declared, source: "robots" }
+    : { urls: [new URL("/sitemap.xml", origin).href], source: "default" };
 }
