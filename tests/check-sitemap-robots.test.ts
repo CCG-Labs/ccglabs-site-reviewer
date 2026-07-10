@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sitemapRobotsCheck } from "../src/checks/seo/sitemap-robots.js";
 import { builtinChecks } from "../src/engine/registry.js";
+import { BodySizeCapError } from "../src/fetch/fetcher.js";
 import type { CheckContext, Environment, FetchResult } from "../src/types.js";
 import { fixturePageStore } from "./helpers/page-store.js";
 
@@ -395,27 +396,28 @@ describe("seo.sitemap-robots", () => {
     expect(outcome).toEqual({ score: 100, findings: [] });
   });
 
-  it("warns when a sitemap file (including a child sitemap inside an index) exceeds the sitemaps.org 50MB-per-file limit", async () => {
-    const hugeBody = `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/child-page</loc></url><!--${"x".repeat(51 * 1024 * 1024)}--></urlset>`;
-    const outcome = await sitemapRobotsCheck.run(
-      contextFor(
-        [
-          { url: "https://example.com/", body: goodBody },
-          { url: "https://example.com/child-page", body: goodBody },
-        ],
-        {
-          [SITEMAP]: { status: 200, body: sitemapIndexXml([CHILD_SITEMAP]) },
-          [CHILD_SITEMAP]: { status: 200, body: hugeBody },
-          [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\n` },
-        },
-      ),
-    );
+  it("gives an actionable message when a sitemap trips the fetcher's response-size cap", async () => {
+    // The shared fetcher enforces a 5MB body cap well under the sitemaps.org 50MB spec
+    // limit, so a dedicated "over 50MB" check could never fire against a real response —
+    // this instead exercises the actual failure path a too-large sitemap takes.
+    const sizeCappedFetch = (url: string): Promise<FetchResult> => {
+      if (url === SITEMAP)
+        return Promise.reject(
+          new BodySizeCapError(`Response body exceeded 5242880 bytes: ${SITEMAP}`),
+        );
+      return routesFetch({ [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\n` } })(url);
+    };
+    const outcome = await sitemapRobotsCheck.run({
+      ...contextFor([{ url: "https://example.com/", body: goodBody }], {}),
+      fetch: sizeCappedFetch,
+    });
     expect(
       outcome.findings.some(
-        (finding) => finding.severity === "warning" && finding.message.includes("50MB-per-file"),
+        (finding) =>
+          finding.severity === "warning" && finding.message.includes("too large to fetch"),
       ),
     ).toBe(true);
-  }, 15_000);
+  });
 
   it("warns when a sitemap file exceeds the sitemaps.org 50,000-URL-per-file limit", async () => {
     const manyUrls = Array.from(

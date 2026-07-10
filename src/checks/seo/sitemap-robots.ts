@@ -8,6 +8,7 @@ import {
 } from "../../crawl/robots.js";
 import { parseSitemapXml } from "../../crawl/sitemap.js";
 import { normalizePageUrl } from "../../crawl/url.js";
+import { BodySizeCapError } from "../../fetch/fetcher.js";
 import type { Check, Finding, RateLimitedFetch } from "../../types.js";
 import { headerNoindex } from "./meta-tags.js";
 import { extractPageMeta } from "./page-meta.js";
@@ -18,9 +19,12 @@ const MISSING_FROM_SITEMAP_LIMIT = 20;
 const ERROR_COST = 20;
 const WARNING_COST = 5;
 
-// sitemaps.org hard caps, per file (index or urlset) — see the protocol spec.
+// sitemaps.org's per-file URL-count cap (see the protocol spec). There's a matching 50MB
+// byte cap in the spec too, but this tool's shared fetcher already refuses any response body
+// over 5MB (see fetch/fetcher.ts) — well under 50MB — so a sitemap that large never reaches
+// this code at all; it surfaces via the BodySizeCapError handling below instead of a
+// dedicated spec-limit check that could never fire.
 const SITEMAP_SPEC_URL_LIMIT = 50_000;
-const SITEMAP_SPEC_BYTE_LIMIT = 50 * 1024 * 1024;
 
 interface SitemapFetchResult {
   exists: boolean;
@@ -39,8 +43,6 @@ interface SitemapFetchResult {
   uncheckedChildSitemaps: number;
   /** this file, or any of its child sitemaps, declares more than 50,000 entries */
   oversizedEntries: boolean;
-  /** this file, or any of its child sitemaps, is over 50MB uncompressed */
-  oversizedBytes: boolean;
 }
 
 async function fetchSitemapEntries(
@@ -61,14 +63,12 @@ async function fetchSitemapEntries(
         failedChildSitemaps: 0,
         uncheckedChildSitemaps: 0,
         oversizedEntries: false,
-        oversizedBytes: false,
       };
     }
     const root = parseSitemapXml(response.body);
     let oversizedEntries =
       root.pageUrls.length > SITEMAP_SPEC_URL_LIMIT ||
       root.childSitemaps.length > SITEMAP_SPEC_URL_LIMIT;
-    let oversizedBytes = Buffer.byteLength(response.body, "utf8") > SITEMAP_SPEC_BYTE_LIMIT;
 
     const entries = [...root.pageUrls];
     const childSitemaps = root.childSitemaps.slice(0, MAX_CHILD_SITEMAPS);
@@ -97,8 +97,6 @@ async function fetchSitemapEntries(
           const childParsed = parseSitemapXml(childResponse.body);
           entries.push(...childParsed.pageUrls);
           if (childParsed.pageUrls.length > SITEMAP_SPEC_URL_LIMIT) oversizedEntries = true;
-          if (Buffer.byteLength(childResponse.body, "utf8") > SITEMAP_SPEC_BYTE_LIMIT)
-            oversizedBytes = true;
         } else {
           failedChildSitemaps += 1;
         }
@@ -116,20 +114,25 @@ async function fetchSitemapEntries(
       failedChildSitemaps,
       uncheckedChildSitemaps: childSitemaps.length - visitedChildSitemaps,
       oversizedEntries,
-      oversizedBytes,
     };
   } catch (error) {
     return {
       exists: false,
       entries: [],
       emptyButPresent: false,
-      failure: error instanceof Error ? error.message : String(error),
+      // BodySizeCapError means the shared fetcher's 5MB cap was hit (see the comment on
+      // SITEMAP_SPEC_URL_LIMIT above) — give an actionable message instead of a generic one.
+      failure:
+        error instanceof BodySizeCapError
+          ? `too large to fetch — exceeds this tool's response size cap (${error.message})`
+          : error instanceof Error
+            ? error.message
+            : String(error),
       totalChildSitemaps: 0,
       crossOriginChildSitemaps: 0,
       failedChildSitemaps: 0,
       uncheckedChildSitemaps: 0,
       oversizedEntries: false,
-      oversizedBytes: false,
     };
   }
 }
@@ -276,14 +279,6 @@ export const sitemapRobotsCheck: Check = {
           url,
           `Sitemap at ${url} has more than 50,000 URLs — at or over the sitemaps.org per-file limit.`,
           "Split into multiple sitemaps referenced from a sitemap index.",
-        );
-      }
-      if (result.oversizedBytes) {
-        add(
-          "warning",
-          url,
-          `Sitemap at ${url} is at or over the sitemaps.org 50MB-per-file limit.`,
-          "Split into multiple smaller sitemaps referenced from a sitemap index, or gzip it (the spec allows .xml.gz).",
         );
       }
 
