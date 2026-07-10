@@ -27,12 +27,16 @@ interface SitemapFetchResult {
   entries: string[];
   emptyButPresent: boolean;
   failure: string | undefined;
-  /** child sitemaps declared (bounded by MAX_CHILD_SITEMAPS), 0 for a plain urlset */
+  /** child sitemaps actually visited (bounded by MAX_CHILD_SITEMAPS and cut short if the
+   *  MAX_SITEMAP_ENTRIES cap is hit) — not the raw declared count. 0 for a plain urlset. */
   totalChildSitemaps: number;
   /** of totalChildSitemaps, how many were skipped without being fetched (different origin / invalid URL) */
   crossOriginChildSitemaps: number;
   /** of the *attempted* (same-origin) children, how many failed to fetch */
   failedChildSitemaps: number;
+  /** declared children never visited at all because MAX_SITEMAP_ENTRIES was hit first —
+   *  these are neither known-good nor known-bad, just unchecked */
+  uncheckedChildSitemaps: number;
   /** this file, or any of its child sitemaps, declares more than 50,000 entries */
   oversizedEntries: boolean;
   /** this file, or any of its child sitemaps, is over 50MB uncompressed */
@@ -55,6 +59,7 @@ async function fetchSitemapEntries(
         totalChildSitemaps: 0,
         crossOriginChildSitemaps: 0,
         failedChildSitemaps: 0,
+        uncheckedChildSitemaps: 0,
         oversizedEntries: false,
         oversizedBytes: false,
       };
@@ -67,10 +72,17 @@ async function fetchSitemapEntries(
 
     const entries = [...root.pageUrls];
     const childSitemaps = root.childSitemaps.slice(0, MAX_CHILD_SITEMAPS);
+    // Count only children the loop actually visits — not childSitemaps.length. If the
+    // MAX_SITEMAP_ENTRIES cap is hit partway through, the remaining declared children are
+    // never looked at, and must not be silently folded into "reachable" (that's exactly the
+    // silent-pass bug this branch exists to fix: a large valid child before broken ones
+    // would otherwise mask the broken ones by inflating the apparent "total").
+    let visitedChildSitemaps = 0;
     let crossOriginChildSitemaps = 0;
     let failedChildSitemaps = 0;
     for (const child of childSitemaps) {
       if (entries.length >= MAX_SITEMAP_ENTRIES) break;
+      visitedChildSitemaps += 1;
       // never send requests (which carry configured auth headers) to foreign origins —
       // a cross-origin child is simply never checked, which is not the same problem as
       // a same-origin child that was attempted and failed (see run()'s use of this field).
@@ -99,9 +111,10 @@ async function fetchSitemapEntries(
       entries: entries.slice(0, MAX_SITEMAP_ENTRIES),
       emptyButPresent: entries.length === 0 && childSitemaps.length === 0,
       failure: undefined,
-      totalChildSitemaps: childSitemaps.length,
+      totalChildSitemaps: visitedChildSitemaps,
       crossOriginChildSitemaps,
       failedChildSitemaps,
+      uncheckedChildSitemaps: childSitemaps.length - visitedChildSitemaps,
       oversizedEntries,
       oversizedBytes,
     };
@@ -114,6 +127,7 @@ async function fetchSitemapEntries(
       totalChildSitemaps: 0,
       crossOriginChildSitemaps: 0,
       failedChildSitemaps: 0,
+      uncheckedChildSitemaps: 0,
       oversizedEntries: false,
       oversizedBytes: false,
     };
@@ -246,6 +260,14 @@ export const sitemapRobotsCheck: Check = {
           url,
           `Sitemap index at ${url} references ${String(result.crossOriginChildSitemaps)} child sitemap(s) on a different origin — these are never fetched.`,
           "A sitemap should only reference child sitemaps on its own host, or the operator should confirm this cross-origin reference is intentional.",
+        );
+      }
+      if (result.uncheckedChildSitemaps > 0) {
+        add(
+          "warning",
+          url,
+          `Sitemap index at ${url} has ${String(result.uncheckedChildSitemaps)} more child sitemap(s) that weren't checked because the ${String(MAX_SITEMAP_ENTRIES)}-URL processing cap was reached first.`,
+          "Split this sitemap into smaller files, or raise MAX_SITEMAP_ENTRIES if you need full coverage of very large sites.",
         );
       }
       if (result.oversizedEntries) {

@@ -314,6 +314,43 @@ describe("seo.sitemap-robots", () => {
     expect(errors.some((finding) => finding.message.includes("none could be fetched"))).toBe(true);
   });
 
+  it("flags declared child sitemaps left unchecked when a large earlier child hits the entry cap", async () => {
+    // Regression test: previously, a large valid child sitemap listed before broken ones
+    // would push totalChildSitemaps to the full declared count without those later children
+    // ever being visited, silently passing over them (0 failed of a falsely-inflated total).
+    const SECOND_CHILD = "https://example.com/sitemap-more.xml";
+    const manyUrls = Array.from(
+      { length: 2_001 },
+      (_unused, index) => `https://example.com/p${String(index)}`,
+    );
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor(
+        [{ url: "https://example.com/", body: goodBody }],
+        {
+          [SITEMAP]: { status: 200, body: sitemapIndexXml([CHILD_SITEMAP, SECOND_CHILD]) },
+          [CHILD_SITEMAP]: { status: 200, body: sitemapXml(manyUrls) },
+          // SECOND_CHILD deliberately left unstubbed -> would 404 if ever fetched, but the
+          // entry cap should stop the loop before it's visited at all.
+          [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\n` },
+        },
+        "production",
+        // capped: true — this test is about child-sitemap bookkeeping, not per-entry crawl
+        // validation, so skip "could not be fetched during the crawl" noise for the 2,000
+        // page URLs this synthetic sitemap lists that were never actually crawled.
+        { capped: true },
+      ),
+    );
+    expect(outcome.findings.some((finding) => finding.severity === "error")).toBe(false);
+    expect(
+      outcome.findings.some(
+        (finding) =>
+          finding.severity === "warning" &&
+          finding.message.includes("1 more child sitemap(s)") &&
+          finding.message.includes("weren't checked"),
+      ),
+    ).toBe(true);
+  }, 15_000);
+
   it("counts a 404'd child sitemap (not just a network error) as unreachable", async () => {
     const outcome = await sitemapRobotsCheck.run(
       contextFor([{ url: "https://example.com/", body: goodBody }], {
