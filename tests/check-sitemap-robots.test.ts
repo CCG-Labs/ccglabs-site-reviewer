@@ -256,12 +256,43 @@ describe("seo.sitemap-robots", () => {
     );
     // The good child's entries are still fully validated (no errors) — but a sitemap index
     // that references a foreign-origin child is flagged, since that child never gets checked.
+    // Crucially: this must NOT be treated as a "failed" child (that's a same-origin fetch
+    // that actually failed) — a cross-origin child is a different, lower-severity problem.
     expect(outcome.findings.every((finding) => finding.severity === "warning")).toBe(true);
     expect(
       outcome.findings.some(
         (finding) =>
-          finding.message.includes("2 child sitemap(s)") &&
-          finding.message.includes("1 could not be fetched"),
+          finding.message.includes("1 child sitemap(s) on a different origin") &&
+          finding.message.includes("never fetched"),
+      ),
+    ).toBe(true);
+    expect(
+      outcome.findings.some((finding) => finding.message.includes("could not be fetched")),
+    ).toBe(false);
+  });
+
+  it("does NOT error when every child sitemap is simply on a different origin (a real multi-subdomain pattern)", async () => {
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor([{ url: "https://example.com/", body: goodBody }], {
+        [SITEMAP]: {
+          status: 200,
+          body: sitemapIndexXml([
+            "https://blog.elsewhere.invalid/sitemap.xml",
+            "https://shop.elsewhere.invalid/sitemap.xml",
+          ]),
+        },
+        [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\n` },
+      }),
+    );
+    // Cross-origin children are never attempted, so they must not be conflated with children
+    // that were attempted and genuinely failed — this used to fire the "none could be fetched"
+    // blocking error for a legitimate architecture (e.g. per-subdomain sitemaps).
+    expect(outcome.findings.some((finding) => finding.severity === "error")).toBe(false);
+    expect(
+      outcome.findings.some(
+        (finding) =>
+          finding.message.includes("2 child sitemap(s) on a different origin") &&
+          finding.severity === "warning",
       ),
     ).toBe(true);
   });

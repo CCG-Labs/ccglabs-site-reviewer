@@ -27,10 +27,12 @@ interface SitemapFetchResult {
   entries: string[];
   emptyButPresent: boolean;
   failure: string | undefined;
-  /** child sitemaps actually attempted (bounded by MAX_CHILD_SITEMAPS), 0 for a plain urlset */
+  /** child sitemaps declared (bounded by MAX_CHILD_SITEMAPS), 0 for a plain urlset */
   totalChildSitemaps: number;
-  /** of totalChildSitemaps, how many could not be fetched (incl. cross-origin/invalid) */
-  unreachableChildSitemaps: number;
+  /** of totalChildSitemaps, how many were skipped without being fetched (different origin / invalid URL) */
+  crossOriginChildSitemaps: number;
+  /** of the *attempted* (same-origin) children, how many failed to fetch */
+  failedChildSitemaps: number;
   /** this file, or any of its child sitemaps, declares more than 50,000 entries */
   oversizedEntries: boolean;
   /** this file, or any of its child sitemaps, is over 50MB uncompressed */
@@ -51,7 +53,8 @@ async function fetchSitemapEntries(
         emptyButPresent: false,
         failure: `HTTP ${String(response.status)}`,
         totalChildSitemaps: 0,
-        unreachableChildSitemaps: 0,
+        crossOriginChildSitemaps: 0,
+        failedChildSitemaps: 0,
         oversizedEntries: false,
         oversizedBytes: false,
       };
@@ -64,13 +67,16 @@ async function fetchSitemapEntries(
 
     const entries = [...root.pageUrls];
     const childSitemaps = root.childSitemaps.slice(0, MAX_CHILD_SITEMAPS);
-    let unreachableChildSitemaps = 0;
+    let crossOriginChildSitemaps = 0;
+    let failedChildSitemaps = 0;
     for (const child of childSitemaps) {
       if (entries.length >= MAX_SITEMAP_ENTRIES) break;
-      // never send requests (which carry configured auth headers) to foreign origins
+      // never send requests (which carry configured auth headers) to foreign origins —
+      // a cross-origin child is simply never checked, which is not the same problem as
+      // a same-origin child that was attempted and failed (see run()'s use of this field).
       const childUrl = normalizePageUrl(child);
       if (childUrl === undefined || !allowed.has(new URL(childUrl).origin)) {
-        unreachableChildSitemaps += 1;
+        crossOriginChildSitemaps += 1;
         continue;
       }
       try {
@@ -82,10 +88,10 @@ async function fetchSitemapEntries(
           if (Buffer.byteLength(childResponse.body, "utf8") > SITEMAP_SPEC_BYTE_LIMIT)
             oversizedBytes = true;
         } else {
-          unreachableChildSitemaps += 1;
+          failedChildSitemaps += 1;
         }
       } catch {
-        unreachableChildSitemaps += 1;
+        failedChildSitemaps += 1;
       }
     }
     return {
@@ -94,7 +100,8 @@ async function fetchSitemapEntries(
       emptyButPresent: entries.length === 0 && childSitemaps.length === 0,
       failure: undefined,
       totalChildSitemaps: childSitemaps.length,
-      unreachableChildSitemaps,
+      crossOriginChildSitemaps,
+      failedChildSitemaps,
       oversizedEntries,
       oversizedBytes,
     };
@@ -105,7 +112,8 @@ async function fetchSitemapEntries(
       emptyButPresent: false,
       failure: error instanceof Error ? error.message : String(error),
       totalChildSitemaps: 0,
-      unreachableChildSitemaps: 0,
+      crossOriginChildSitemaps: 0,
+      failedChildSitemaps: 0,
       oversizedEntries: false,
       oversizedBytes: false,
     };
@@ -212,22 +220,32 @@ export const sitemapRobotsCheck: Check = {
           "Fix the sitemap generator — an empty sitemap hides pages from crawlers.",
         );
       }
-      if (
-        result.totalChildSitemaps > 0 &&
-        result.unreachableChildSitemaps === result.totalChildSitemaps
-      ) {
+      // Cross-origin children are a different problem than failed ones: a sitemap index
+      // that legitimately spans subdomains (blog.example.com, shop.example.com — a real,
+      // non-broken pattern) is never "attempted" here at all, so it must not be scored
+      // the same as an index whose children genuinely 404 or error out.
+      const attemptedChildSitemaps = result.totalChildSitemaps - result.crossOriginChildSitemaps;
+      if (attemptedChildSitemaps > 0 && result.failedChildSitemaps === attemptedChildSitemaps) {
         add(
           "error",
           url,
-          `Sitemap index at ${url} references ${String(result.totalChildSitemaps)} child sitemap(s), but none could be fetched.`,
+          `Sitemap index at ${url} references ${String(attemptedChildSitemaps)} child sitemap(s) on its own origin, but none could be fetched.`,
           "Fix or remove the dead child sitemap references — an index pointing at nothing is as bad as no sitemap.",
         );
-      } else if (result.unreachableChildSitemaps > 0) {
+      } else if (result.failedChildSitemaps > 0) {
         add(
           "warning",
           url,
-          `Sitemap index at ${url} references ${String(result.totalChildSitemaps)} child sitemap(s); ${String(result.unreachableChildSitemaps)} could not be fetched.`,
+          `Sitemap index at ${url} references ${String(attemptedChildSitemaps)} child sitemap(s) on its own origin; ${String(result.failedChildSitemaps)} could not be fetched.`,
           "Fix or remove the dead child sitemap references.",
+        );
+      }
+      if (result.crossOriginChildSitemaps > 0) {
+        add(
+          "warning",
+          url,
+          `Sitemap index at ${url} references ${String(result.crossOriginChildSitemaps)} child sitemap(s) on a different origin — these are never fetched.`,
+          "A sitemap should only reference child sitemaps on its own host, or the operator should confirm this cross-origin reference is intentional.",
         );
       }
       if (result.oversizedEntries) {
