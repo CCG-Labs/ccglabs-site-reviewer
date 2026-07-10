@@ -73,19 +73,28 @@ export function isDisallowed(url: string, robots: RobotsTxt): boolean {
   return disallow > longest(robots.wildcardAllows);
 }
 
+// A robots.txt with more declared Sitemap: lines than this is almost certainly
+// misconfigured (or hostile) — fetching all of them would fan out into an
+// unbounded number of requests. Mirrors the existing MAX_CHILD_SITEMAPS cap
+// one layer down (crawl/sitemap.ts, checks/seo/sitemap-robots.ts).
+const MAX_DECLARED_SITEMAPS = 25;
+
 export interface ResolvedSitemaps {
-  /** deduped, same-origin sitemap URLs, in declaration order */
+  /** deduped, same-origin sitemap URLs, in declaration order, capped at MAX_DECLARED_SITEMAPS */
   urls: string[];
   /** "robots" when taken from a Sitemap: line, "default" when guessed */
   source: "robots" | "default";
+  /** true when robots.txt declared more usable sitemaps than MAX_DECLARED_SITEMAPS */
+  truncated: boolean;
 }
 
 /**
  * What sitemap(s) does this site declare? Prefers every same-origin `Sitemap:`
- * line from robots.txt (a site can legally declare more than one); falls back
- * to the conventional `/sitemap.xml` guess only when robots.txt declares
- * nothing usable. Pure — callers fetch/parse robots.txt themselves and pass
- * the result in, so this needs no I/O and is trivially testable.
+ * line from robots.txt (a site can legally declare more than one, capped at
+ * MAX_DECLARED_SITEMAPS); falls back to the conventional `/sitemap.xml` guess
+ * only when robots.txt declares nothing usable. Pure — callers fetch/parse
+ * robots.txt themselves and pass the result in, so this needs no I/O and is
+ * trivially testable.
  */
 export function resolveSitemapUrls(
   robots: RobotsTxt | undefined,
@@ -100,7 +109,12 @@ export function resolveSitemapUrls(
         .filter((url): url is string => url !== undefined && allowed.has(new URL(url).origin)),
     ),
   ];
-  return declared.length > 0
-    ? { urls: declared, source: "robots" }
-    : { urls: [new URL("/sitemap.xml", origin).href], source: "default" };
+  if (declared.length === 0) {
+    return { urls: [new URL("/sitemap.xml", origin).href], source: "default", truncated: false };
+  }
+  return {
+    urls: declared.slice(0, MAX_DECLARED_SITEMAPS),
+    source: "robots",
+    truncated: declared.length > MAX_DECLARED_SITEMAPS,
+  };
 }

@@ -89,6 +89,7 @@ describe("resolveSitemapUrls", () => {
     expect(resolveSitemapUrls(undefined, origin, robotsUrl, allowed)).toEqual({
       urls: ["https://example.com/sitemap.xml"],
       source: "default",
+      truncated: false,
     });
   });
 
@@ -97,6 +98,7 @@ describe("resolveSitemapUrls", () => {
     expect(resolveSitemapUrls(robots, origin, robotsUrl, allowed)).toEqual({
       urls: ["https://example.com/sitemap.xml"],
       source: "default",
+      truncated: false,
     });
   });
 
@@ -109,6 +111,7 @@ describe("resolveSitemapUrls", () => {
     expect(resolveSitemapUrls(robots, origin, robotsUrl, allowed)).toEqual({
       urls: ["https://example.com/sitemap-index.xml"],
       source: "robots",
+      truncated: false,
     });
   });
 
@@ -125,6 +128,7 @@ describe("resolveSitemapUrls", () => {
     expect(resolveSitemapUrls(robots, origin, robotsUrl, allowed)).toEqual({
       urls: ["https://example.com/sitemap-products.xml", "https://example.com/sitemap-blog.xml"],
       source: "robots",
+      truncated: false,
     });
   });
 
@@ -137,6 +141,7 @@ describe("resolveSitemapUrls", () => {
     expect(resolveSitemapUrls(robots, origin, robotsUrl, allowed)).toEqual({
       urls: ["https://example.com/sitemap-index.xml"],
       source: "robots",
+      truncated: false,
     });
   });
 
@@ -149,6 +154,20 @@ describe("resolveSitemapUrls", () => {
     expect(resolveSitemapUrls(robots, origin, robotsUrl, allowed)).toEqual({
       urls: ["https://example.com/sitemap.xml"],
       source: "default",
+      truncated: false,
     });
+  });
+
+  it("caps declared sitemaps at MAX_DECLARED_SITEMAPS and reports truncation", () => {
+    const sitemaps = Array.from(
+      { length: 30 },
+      (_unused, index) => `https://example.com/sitemap-${String(index)}.xml`,
+    );
+    const robots: RobotsTxt = { wildcardDisallows: [], wildcardAllows: [], sitemaps };
+    const result = resolveSitemapUrls(robots, origin, robotsUrl, allowed);
+    expect(result.urls).toHaveLength(25);
+    expect(result.urls).toEqual(sitemaps.slice(0, 25));
+    expect(result.source).toBe("robots");
+    expect(result.truncated).toBe(true);
   });
 });

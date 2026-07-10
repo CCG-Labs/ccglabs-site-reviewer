@@ -163,7 +163,19 @@ export const sitemapRobotsCheck: Check = {
     }
 
     const allowed = allowedOriginsFor(new URL(ctx.baseUrl));
-    const { urls: sitemapUrls, source } = resolveSitemapUrls(robots, origin, robotsUrl, allowed);
+    const {
+      urls: sitemapUrls,
+      source,
+      truncated,
+    } = resolveSitemapUrls(robots, origin, robotsUrl, allowed);
+    if (truncated) {
+      add(
+        "warning",
+        robotsUrl,
+        `robots.txt declares more than ${String(sitemapUrls.length)} sitemaps; only the first ${String(sitemapUrls.length)} were checked.`,
+        "Consolidate into a sitemap index instead of dozens of individual Sitemap: lines.",
+      );
+    }
     const results = await Promise.all(
       sitemapUrls.map((url) => fetchSitemapEntries(ctx.fetch, url, allowed)),
     );
