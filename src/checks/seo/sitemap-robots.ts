@@ -6,14 +6,12 @@ import {
   resolveSitemapUrls,
   type RobotsTxt,
 } from "../../crawl/robots.js";
-import { parseSitemapXml } from "../../crawl/sitemap.js";
+import { walkSitemap } from "../../crawl/sitemap.js";
 import { normalizePageUrl } from "../../crawl/url.js";
-import { BodySizeCapError } from "../../fetch/fetcher.js";
 import type { Check, Finding, RateLimitedFetch } from "../../types.js";
 import { headerNoindex } from "./meta-tags.js";
 import { extractPageMeta } from "./page-meta.js";
 
-const MAX_CHILD_SITEMAPS = 10;
 const MAX_SITEMAP_ENTRIES = 2000;
 const MISSING_FROM_SITEMAP_LIMIT = 20;
 const ERROR_COST = 20;
@@ -22,8 +20,8 @@ const WARNING_COST = 5;
 // sitemaps.org's per-file URL-count cap (see the protocol spec). There's a matching 50MB
 // byte cap in the spec too, but this tool's shared fetcher already refuses any response body
 // over 5MB (see fetch/fetcher.ts) — well under 50MB — so a sitemap that large never reaches
-// this code at all; it surfaces via the BodySizeCapError handling below instead of a
-// dedicated spec-limit check that could never fire.
+// this code at all; it surfaces as a walkSitemap failure (BodySizeCapError, given an
+// actionable message there) instead of a dedicated spec-limit check that could never fire.
 const SITEMAP_SPEC_URL_LIMIT = 50_000;
 
 interface SitemapFetchResult {
@@ -45,112 +43,21 @@ interface SitemapFetchResult {
   oversizedEntries: boolean;
 }
 
+// Thin, check-specific decoration over the shared crawl/sitemap.ts#walkSitemap primitive:
+// renames a couple of fields to this check's vocabulary and adds the sitemaps.org size-limit
+// verdict, which is specific to this check (crawl seeding doesn't care about it).
 async function fetchSitemapEntries(
   fetchFn: RateLimitedFetch,
   sitemapUrl: string,
   allowed: ReadonlySet<string>,
 ): Promise<SitemapFetchResult> {
-  try {
-    const response = await fetchFn(sitemapUrl);
-    if (response.status !== 200) {
-      return {
-        exists: false,
-        entries: [],
-        emptyButPresent: false,
-        failure: `HTTP ${String(response.status)}`,
-        totalChildSitemaps: 0,
-        crossOriginChildSitemaps: 0,
-        failedChildSitemaps: 0,
-        uncheckedChildSitemaps: 0,
-        oversizedEntries: false,
-      };
-    }
-    const root = parseSitemapXml(response.body);
-    let oversizedEntries =
-      root.pageUrls.length > SITEMAP_SPEC_URL_LIMIT ||
-      root.childSitemaps.length > SITEMAP_SPEC_URL_LIMIT;
-
-    const entries = [...root.pageUrls];
-    const childSitemaps = root.childSitemaps.slice(0, MAX_CHILD_SITEMAPS);
-    // Fire every child fetch off immediately — concurrently, not one-at-a-time — so a
-    // slow/hanging child's timeout doesn't stack on top of every other child's (sequential
-    // fetching of up to MAX_CHILD_SITEMAPS children could previously cost minutes against a
-    // struggling target). Results are still *evaluated* in declaration order below so the
-    // MAX_SITEMAP_ENTRIES early-exit semantics (and uncheckedChildSitemaps bookkeeping) are
-    // unchanged — by the time we await a later child's promise it's usually already settled,
-    // since all of them started running before this loop began.
-    const childFetches = childSitemaps.map(
-      async (
-        child,
-      ): Promise<
-        | { kind: "cross-origin" }
-        | { kind: "failed" }
-        | { kind: "ok"; parsed: ReturnType<typeof parseSitemapXml> }
-      > => {
-        // never send requests (which carry configured auth headers) to foreign origins —
-        // a cross-origin child is simply never checked, which is not the same problem as
-        // a same-origin child that was attempted and failed (see run()'s use of this field).
-        const childUrl = normalizePageUrl(child);
-        if (childUrl === undefined || !allowed.has(new URL(childUrl).origin)) {
-          return { kind: "cross-origin" };
-        }
-        try {
-          const childResponse = await fetchFn(childUrl);
-          if (childResponse.status === 200) {
-            return { kind: "ok", parsed: parseSitemapXml(childResponse.body) };
-          }
-          return { kind: "failed" };
-        } catch {
-          return { kind: "failed" };
-        }
-      },
-    );
-
-    // Count only children the loop actually visits — not childSitemaps.length. If the
-    // MAX_SITEMAP_ENTRIES cap is hit partway through, the remaining declared children are
-    // never looked at, and must not be silently folded into "reachable" (that's exactly the
-    // silent-pass bug this branch exists to fix: a large valid child before broken ones
-    // would otherwise mask the broken ones by inflating the apparent "total").
-    let visitedChildSitemaps = 0;
-    let crossOriginChildSitemaps = 0;
-    let failedChildSitemaps = 0;
-    for (const childFetch of childFetches) {
-      if (entries.length >= MAX_SITEMAP_ENTRIES) break;
-      visitedChildSitemaps += 1;
-      const result = await childFetch;
-      if (result.kind === "cross-origin") {
-        crossOriginChildSitemaps += 1;
-      } else if (result.kind === "failed") {
-        failedChildSitemaps += 1;
-      } else {
-        entries.push(...result.parsed.pageUrls);
-        if (result.parsed.pageUrls.length > SITEMAP_SPEC_URL_LIMIT) oversizedEntries = true;
-      }
-    }
-    return {
-      exists: true,
-      entries: entries.slice(0, MAX_SITEMAP_ENTRIES),
-      emptyButPresent: entries.length === 0 && childSitemaps.length === 0,
-      failure: undefined,
-      totalChildSitemaps: visitedChildSitemaps,
-      crossOriginChildSitemaps,
-      failedChildSitemaps,
-      uncheckedChildSitemaps: childSitemaps.length - visitedChildSitemaps,
-      oversizedEntries,
-    };
-  } catch (error) {
+  const walk = await walkSitemap(fetchFn, sitemapUrl, allowed, MAX_SITEMAP_ENTRIES);
+  if (!walk.exists) {
     return {
       exists: false,
       entries: [],
       emptyButPresent: false,
-      // BodySizeCapError means the shared fetcher's 5MB cap was hit (see the comment on
-      // SITEMAP_SPEC_URL_LIMIT above) — give an actionable message instead of a generic one.
-      failure:
-        error instanceof BodySizeCapError
-          ? `too large to fetch — exceeds this tool's response size cap (${error.message})`
-          : error instanceof Error
-            ? error.message
-            : String(error),
+      failure: walk.failure,
       totalChildSitemaps: 0,
       crossOriginChildSitemaps: 0,
       failedChildSitemaps: 0,
@@ -158,6 +65,20 @@ async function fetchSitemapEntries(
       oversizedEntries: false,
     };
   }
+  return {
+    exists: true,
+    entries: walk.pageUrls,
+    emptyButPresent: walk.pageUrls.length === 0 && walk.totalChildSitemaps === 0,
+    failure: undefined,
+    totalChildSitemaps: walk.visitedChildSitemaps,
+    crossOriginChildSitemaps: walk.crossOriginChildSitemaps,
+    failedChildSitemaps: walk.failedChildSitemaps,
+    uncheckedChildSitemaps: walk.totalChildSitemaps - walk.visitedChildSitemaps,
+    oversizedEntries:
+      walk.rootPageUrlCount > SITEMAP_SPEC_URL_LIMIT ||
+      walk.declaredChildSitemaps > SITEMAP_SPEC_URL_LIMIT ||
+      walk.maxChildPageUrlCount > SITEMAP_SPEC_URL_LIMIT,
+  };
 }
 
 export const sitemapRobotsCheck: Check = {

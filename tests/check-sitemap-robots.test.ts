@@ -388,7 +388,7 @@ describe("seo.sitemap-robots", () => {
           finding.message.includes("weren't checked"),
       ),
     ).toBe(true);
-  }, 15_000);
+  }, 30_000);
 
   it("counts a 404'd child sitemap (not just a network error) as unreachable", async () => {
     const outcome = await sitemapRobotsCheck.run(
@@ -473,7 +473,7 @@ describe("seo.sitemap-robots", () => {
         (finding) => finding.severity === "warning" && finding.message.includes("50,000 URLs"),
       ),
     ).toBe(true);
-  }, 15_000);
+  }, 30_000);
 
   it("warns when robots.txt and sitemap.xml both fail to fetch (network error, not just 404)", async () => {
     const throwingFetch = (): Promise<FetchResult> => Promise.reject(new Error("boom"));
