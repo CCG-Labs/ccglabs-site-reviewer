@@ -235,6 +235,44 @@ describe("seo.sitemap-robots", () => {
 
   const CHILD_SITEMAP = "https://example.com/sitemap-pages.xml";
 
+  it("fetches child sitemaps concurrently, not one at a time", async () => {
+    // Regression test for unbounded worst-case latency: 5 children each with an artificial
+    // delay used to previously cost 5x that delay in total (strictly sequential fetching);
+    // fetching them concurrently should cost roughly 1x regardless of how many there are.
+    const DELAY_MS = 60;
+    const children = Array.from(
+      { length: 5 },
+      (_unused, index) => `https://example.com/child-${String(index)}.xml`,
+    );
+    const delayedFetch = (url: string): Promise<FetchResult> => {
+      const respond = () =>
+        routesFetch({
+          [SITEMAP]: { status: 200, body: sitemapIndexXml(children) },
+          [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\n` },
+          ...Object.fromEntries(
+            children.map((child) => [child, { status: 200, body: sitemapXml([]) }]),
+          ),
+        })(url);
+      if (children.includes(url)) {
+        return new Promise((resolvePromise) => {
+          setTimeout(() => {
+            resolvePromise(respond());
+          }, DELAY_MS);
+        });
+      }
+      return respond();
+    };
+    const started = Date.now();
+    await sitemapRobotsCheck.run({
+      ...contextFor([{ url: "https://example.com/", body: goodBody }], {}),
+      fetch: delayedFetch,
+    });
+    const elapsedMs = Date.now() - started;
+    // Sequential would take >= 5 * DELAY_MS (300ms); concurrent should stay well under that
+    // even with scheduling overhead. Generous margin to avoid CI flakiness.
+    expect(elapsedMs).toBeLessThan(3 * DELAY_MS);
+  });
+
   it("merges entries from a same-origin child sitemap and warns (not errors) about a cross-origin one", async () => {
     const outcome = await sitemapRobotsCheck.run(
       contextFor(

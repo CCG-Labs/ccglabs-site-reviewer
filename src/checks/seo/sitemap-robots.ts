@@ -72,6 +72,40 @@ async function fetchSitemapEntries(
 
     const entries = [...root.pageUrls];
     const childSitemaps = root.childSitemaps.slice(0, MAX_CHILD_SITEMAPS);
+    // Fire every child fetch off immediately — concurrently, not one-at-a-time — so a
+    // slow/hanging child's timeout doesn't stack on top of every other child's (sequential
+    // fetching of up to MAX_CHILD_SITEMAPS children could previously cost minutes against a
+    // struggling target). Results are still *evaluated* in declaration order below so the
+    // MAX_SITEMAP_ENTRIES early-exit semantics (and uncheckedChildSitemaps bookkeeping) are
+    // unchanged — by the time we await a later child's promise it's usually already settled,
+    // since all of them started running before this loop began.
+    const childFetches = childSitemaps.map(
+      async (
+        child,
+      ): Promise<
+        | { kind: "cross-origin" }
+        | { kind: "failed" }
+        | { kind: "ok"; parsed: ReturnType<typeof parseSitemapXml> }
+      > => {
+        // never send requests (which carry configured auth headers) to foreign origins —
+        // a cross-origin child is simply never checked, which is not the same problem as
+        // a same-origin child that was attempted and failed (see run()'s use of this field).
+        const childUrl = normalizePageUrl(child);
+        if (childUrl === undefined || !allowed.has(new URL(childUrl).origin)) {
+          return { kind: "cross-origin" };
+        }
+        try {
+          const childResponse = await fetchFn(childUrl);
+          if (childResponse.status === 200) {
+            return { kind: "ok", parsed: parseSitemapXml(childResponse.body) };
+          }
+          return { kind: "failed" };
+        } catch {
+          return { kind: "failed" };
+        }
+      },
+    );
+
     // Count only children the loop actually visits — not childSitemaps.length. If the
     // MAX_SITEMAP_ENTRIES cap is hit partway through, the remaining declared children are
     // never looked at, and must not be silently folded into "reachable" (that's exactly the
@@ -80,28 +114,17 @@ async function fetchSitemapEntries(
     let visitedChildSitemaps = 0;
     let crossOriginChildSitemaps = 0;
     let failedChildSitemaps = 0;
-    for (const child of childSitemaps) {
+    for (const childFetch of childFetches) {
       if (entries.length >= MAX_SITEMAP_ENTRIES) break;
       visitedChildSitemaps += 1;
-      // never send requests (which carry configured auth headers) to foreign origins —
-      // a cross-origin child is simply never checked, which is not the same problem as
-      // a same-origin child that was attempted and failed (see run()'s use of this field).
-      const childUrl = normalizePageUrl(child);
-      if (childUrl === undefined || !allowed.has(new URL(childUrl).origin)) {
+      const result = await childFetch;
+      if (result.kind === "cross-origin") {
         crossOriginChildSitemaps += 1;
-        continue;
-      }
-      try {
-        const childResponse = await fetchFn(childUrl);
-        if (childResponse.status === 200) {
-          const childParsed = parseSitemapXml(childResponse.body);
-          entries.push(...childParsed.pageUrls);
-          if (childParsed.pageUrls.length > SITEMAP_SPEC_URL_LIMIT) oversizedEntries = true;
-        } else {
-          failedChildSitemaps += 1;
-        }
-      } catch {
+      } else if (result.kind === "failed") {
         failedChildSitemaps += 1;
+      } else {
+        entries.push(...result.parsed.pageUrls);
+        if (result.parsed.pageUrls.length > SITEMAP_SPEC_URL_LIMIT) oversizedEntries = true;
       }
     }
     return {
