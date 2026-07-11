@@ -80,7 +80,7 @@ export const sitemapRobotsCheck: Check = {
   id: "seo.sitemap-robots",
   category: "seo",
   description:
-    "Every sitemap this site declares (via robots.txt, or the conventional /sitemap.xml when none is declared) exists, parses, and lists only live, canonical, indexable URLs; robots.txt is sane and references the sitemap.",
+    "Every sitemap this site declares (via robots.txt, or the conventional /sitemap.xml when none is declared) exists, parses, lists only live, canonical, indexable URLs, and stays within the sitemaps.org 50,000-URL-per-file limit; sitemap index child sitemaps are reachable; robots.txt is sane and references the sitemap.",
   environments: ["local", "ci", "production"],
   blocking: true,
   weight: 1,
