@@ -436,6 +436,24 @@ describe("seo.sitemap-robots", () => {
     expect(outcome.findings.some((finding) => finding.severity === "error")).toBe(false);
   });
 
+  it("validates a URL appearing in two declared sitemaps only once", async () => {
+    const SECOND_SITEMAP = "https://example.com/sitemap-blog.xml";
+    const SHARED = "https://example.com/never-crawled";
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor([{ url: "https://example.com/", body: goodBody }], {
+        [SITEMAP]: { status: 200, body: sitemapXml(["https://example.com/", SHARED]) },
+        [SECOND_SITEMAP]: { status: 200, body: sitemapXml([SHARED]) },
+        [ROBOTS]: { status: 200, body: `Sitemap: ${SITEMAP}\nSitemap: ${SECOND_SITEMAP}\n` },
+      }),
+    );
+    const errors = outcome.findings.filter(
+      (finding) => finding.severity === "error" && finding.url === SHARED,
+    );
+    // SHARED is listed in both sitemaps but was never crawled; it must be validated once,
+    // not once per declaring sitemap.
+    expect(errors).toHaveLength(1);
+  });
+
   it("passes cleanly when robots.txt declares a non-default sitemap path (the one-day-website scenario)", async () => {
     const NON_DEFAULT = "https://example.com/sitemap-index.xml";
     const outcome = await sitemapRobotsCheck.run(
