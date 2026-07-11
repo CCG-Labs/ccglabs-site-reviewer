@@ -1,11 +1,6 @@
 import { allowedOriginsFor } from "../../crawl/crawler.js";
 import { pageDom } from "../../crawl/page-dom.js";
-import {
-  isDisallowed,
-  parseRobotsTxt,
-  resolveSitemapUrls,
-  type RobotsTxt,
-} from "../../crawl/robots.js";
+import { isDisallowed, resolveSitemapUrls } from "../../crawl/robots.js";
 import { walkSitemap } from "../../crawl/sitemap.js";
 import { normalizePageUrl } from "../../crawl/url.js";
 import type { Check, Finding, RateLimitedFetch } from "../../types.js";
@@ -102,23 +97,22 @@ export const sitemapRobotsCheck: Check = {
       findings.push({ severity, url, message, recommendation });
     };
 
-    let robots: RobotsTxt | undefined;
-    try {
-      const response = await ctx.fetch(robotsUrl);
-      if (response.status === 200) robots = parseRobotsTxt(response.body);
-      else
-        add(
-          "warning",
-          robotsUrl,
-          `robots.txt is missing (HTTP ${String(response.status)}).`,
-          "Add a robots.txt that allows crawling and references your sitemap.",
-        );
-    } catch {
+    // Fetched once by the crawler (crawlSite needs it to resolve sitemap seeding too) and
+    // reused here rather than fetched a second time — see PageStore#robots().
+    const { parsed: robots, status: robotsStatus } = ctx.pages.robots();
+    if (robotsStatus === undefined) {
       add(
         "warning",
         robotsUrl,
         "robots.txt could not be fetched.",
         "Ensure /robots.txt is served.",
+      );
+    } else if (robotsStatus !== 200) {
+      add(
+        "warning",
+        robotsUrl,
+        `robots.txt is missing (HTTP ${String(robotsStatus)}).`,
+        "Add a robots.txt that allows crawling and references your sitemap.",
       );
     }
 

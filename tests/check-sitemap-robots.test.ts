@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { sitemapRobotsCheck } from "../src/checks/seo/sitemap-robots.js";
+import { parseRobotsTxt } from "../src/crawl/robots.js";
 import { builtinChecks } from "../src/engine/registry.js";
 import { BodySizeCapError } from "../src/fetch/fetcher.js";
-import type { CheckContext, Environment, FetchResult } from "../src/types.js";
+import type { CheckContext, Environment, FetchResult, RobotsFetchResult } from "../src/types.js";
 import { fixturePageStore } from "./helpers/page-store.js";
 
 const sitemapXml = (locs: string[]) =>
@@ -27,11 +28,27 @@ const routesFetch =
 
 const goodBody = `<html lang="en"><head><title>t</title></head><body></body></html>`;
 
+const ROBOTS = "https://example.com/robots.txt";
+const SITEMAP = "https://example.com/sitemap.xml";
+
+// Mirrors what crawlSite() actually does: fetch robots.txt once and hand the result to
+// PageStore#robots() (see src/crawl/crawler.ts). Since the check no longer fetches robots.txt
+// itself, tests derive the same RobotsFetchResult from `routes` here instead — an unstubbed
+// robots.txt route resolves to the same 404-default routesFetch() gives every other URL.
+const robotsResultFor = (
+  routes: Record<string, { status: number; body?: string }>,
+): RobotsFetchResult => {
+  const route = routes[ROBOTS];
+  const status = route?.status ?? 404;
+  return { status, parsed: status === 200 ? parseRobotsTxt(route?.body ?? "") : undefined };
+};
+
 const contextFor = (
   pages: Parameters<typeof fixturePageStore>[0],
   routes: Record<string, { status: number; body?: string }>,
   environment: Environment = "production",
   stats: Parameters<typeof fixturePageStore>[1] = {},
+  robotsOverride: Partial<RobotsFetchResult> = {},
 ): CheckContext => ({
   baseUrl: "https://example.com",
   environment,
@@ -44,13 +61,10 @@ const contextFor = (
     checks: {},
     customChecks: [],
   },
-  pages: fixturePageStore(pages, stats),
+  pages: fixturePageStore(pages, stats, { ...robotsResultFor(routes), ...robotsOverride }),
   fetch: routesFetch(routes),
   logger: { debug: () => undefined },
 });
-
-const ROBOTS = "https://example.com/robots.txt";
-const SITEMAP = "https://example.com/sitemap.xml";
 
 describe("seo.sitemap-robots", () => {
   it("is registered as a built-in", () => {
@@ -476,11 +490,22 @@ describe("seo.sitemap-robots", () => {
   }, 30_000);
 
   it("warns when robots.txt and sitemap.xml both fail to fetch (network error, not just 404)", async () => {
-    const throwingFetch = (): Promise<FetchResult> => Promise.reject(new Error("boom"));
-    const outcome = await sitemapRobotsCheck.run({
-      ...contextFor([{ url: "https://example.com/", body: goodBody }], {}),
-      fetch: throwingFetch,
-    });
+    // Simulates the crawler's own robots.txt fetch throwing (see crawlSite in crawler.ts,
+    // which swallows the error and leaves status/parsed both undefined) — the check now reads
+    // that pre-fetched result instead of fetching robots.txt itself. sitemap.xml is still
+    // fetched directly by the check, so leaving it unstubbed exercises its own 404 path.
+    const outcome = await sitemapRobotsCheck.run(
+      contextFor(
+        [{ url: "https://example.com/", body: goodBody }],
+        {},
+        "production",
+        {},
+        {
+          parsed: undefined,
+          status: undefined,
+        },
+      ),
+    );
     const messages = outcome.findings.map((finding) => finding.message).join(" ");
     expect(messages).toContain("robots.txt could not be fetched");
     expect(messages).toContain("sitemap.xml is missing");

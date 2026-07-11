@@ -1,3 +1,5 @@
+import type { RobotsTxt } from "./crawl/robots.js";
+
 export type Environment = "local" | "ci" | "production";
 
 export const CATEGORY_IDS = [
@@ -69,6 +71,13 @@ export interface CrawlStats {
   capped: boolean;
 }
 
+export interface RobotsFetchResult {
+  /** parsed robots.txt, only when the fetch returned HTTP 200 */
+  parsed: RobotsTxt | undefined;
+  /** HTTP status if the fetch completed at all; undefined if the fetch itself threw */
+  status: number | undefined;
+}
+
 export interface PageStore {
   /** look up a page by URL (normalized internally) */
   get(url: string): CrawledPage | undefined;
@@ -76,6 +85,9 @@ export interface PageStore {
   /** pages whose content-type is HTML — what most checks iterate */
   htmlPages(): CrawledPage[];
   stats(): CrawlStats;
+  /** robots.txt as fetched once during the crawl (to resolve sitemap seeding) — checks reuse
+   *  this instead of re-fetching the same URL a second time */
+  robots(): RobotsFetchResult;
 }
 
 export interface CheckContext {
