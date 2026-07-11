@@ -229,6 +229,9 @@ export const sitemapRobotsCheck: Check = {
       source,
       truncated,
     } = resolveSitemapUrls(robots, origin, robotsUrl, allowed);
+    // resolveSitemapUrls always returns at least one URL — every declared Sitemap: line
+    // (capped at MAX_DECLARED_SITEMAPS) or, absent any, the single /sitemap.xml default.
+    const firstSitemapUrl = sitemapUrls[0] as string;
     if (truncated) {
       add(
         "warning",
@@ -237,8 +240,14 @@ export const sitemapRobotsCheck: Check = {
         "Consolidate into a sitemap index instead of dozens of individual Sitemap: lines.",
       );
     }
+    // Paired with its source URL up front so the loop below never needs to re-index into
+    // sitemapUrls (which, under noUncheckedIndexedAccess, would force a fallback that could
+    // silently mask an off-by-one instead of failing loudly).
     const results = await Promise.all(
-      sitemapUrls.map((url) => fetchSitemapEntries(ctx.fetch, url, allowed)),
+      sitemapUrls.map(async (url) => ({
+        url,
+        result: await fetchSitemapEntries(ctx.fetch, url, allowed),
+      })),
     );
 
     let anyExists = false;
@@ -247,11 +256,7 @@ export const sitemapRobotsCheck: Check = {
     const capped = ctx.pages.stats().capped;
     let skippedUnverifiable = 0;
 
-    for (let i = 0; i < sitemapUrls.length; i += 1) {
-      const url = sitemapUrls[i] ?? "";
-      const result = results[i];
-      if (result === undefined) continue;
-
+    for (const { url, result } of results) {
       if (!result.exists) {
         add(
           "warning",
@@ -351,7 +356,7 @@ export const sitemapRobotsCheck: Check = {
         "warning",
         robotsUrl,
         "robots.txt does not reference the sitemap.",
-        `Add "Sitemap: ${sitemapUrls[0] ?? ""}" to robots.txt.`,
+        `Add "Sitemap: ${firstSitemapUrl}" to robots.txt.`,
       );
     }
 
@@ -378,7 +383,7 @@ export const sitemapRobotsCheck: Check = {
       if (missing > MISSING_FROM_SITEMAP_LIMIT) {
         add(
           "warning",
-          sitemapUrls[0] ?? robotsUrl,
+          firstSitemapUrl,
           `${String(missing - MISSING_FROM_SITEMAP_LIMIT)} more indexable pages are missing from the sitemap.`,
           "Regenerate the sitemap from the full page inventory.",
         );
