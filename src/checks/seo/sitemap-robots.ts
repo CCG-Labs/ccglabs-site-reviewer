@@ -1,9 +1,9 @@
 import { allowedOriginsFor } from "../../crawl/crawler.js";
 import { pageDom } from "../../crawl/page-dom.js";
-import { isDisallowed, resolveSitemapUrls } from "../../crawl/robots.js";
-import { walkSitemap } from "../../crawl/sitemap.js";
+import { isDisallowed, resolveSitemapUrls, type RobotsTxt } from "../../crawl/robots.js";
+import { walkSitemap, type SitemapWalkResult } from "../../crawl/sitemap.js";
 import { normalizePageUrl } from "../../crawl/url.js";
-import type { Check, Finding, RateLimitedFetch } from "../../types.js";
+import type { Check, CheckContext, Finding, RateLimitedFetch } from "../../types.js";
 import { headerNoindex } from "./meta-tags.js";
 import { extractPageMeta } from "./page-meta.js";
 
@@ -18,6 +18,25 @@ const WARNING_COST = 5;
 // this code at all; it surfaces as a walkSitemap failure (BodySizeCapError, given an
 // actionable message there) instead of a dedicated spec-limit check that could never fire.
 const SITEMAP_SPEC_URL_LIMIT = 50_000;
+
+type AddFinding = (
+  severity: Finding["severity"],
+  url: string,
+  message: string,
+  recommendation: string,
+) => void;
+
+// Pure check against the sitemaps.org per-file <url>/<sitemap> count cap — split out so the
+// three counts it considers (this file's own entries, its declared children, and the largest
+// individual child actually fetched) are named in one place instead of inline in the walk
+// post-processing below.
+function exceedsSitemapSpecUrlLimit(walk: SitemapWalkResult): boolean {
+  return (
+    walk.rootPageUrlCount > SITEMAP_SPEC_URL_LIMIT ||
+    walk.declaredChildSitemaps > SITEMAP_SPEC_URL_LIMIT ||
+    walk.maxChildPageUrlCount > SITEMAP_SPEC_URL_LIMIT
+  );
+}
 
 interface SitemapFetchResult {
   exists: boolean;
@@ -69,11 +88,90 @@ async function fetchSitemapEntries(
     crossOriginChildSitemaps: walk.crossOriginChildSitemaps,
     failedChildSitemaps: walk.failedChildSitemaps,
     uncheckedChildSitemaps: walk.totalChildSitemaps - walk.visitedChildSitemaps,
-    oversizedEntries:
-      walk.rootPageUrlCount > SITEMAP_SPEC_URL_LIMIT ||
-      walk.declaredChildSitemaps > SITEMAP_SPEC_URL_LIMIT ||
-      walk.maxChildPageUrlCount > SITEMAP_SPEC_URL_LIMIT,
+    oversizedEntries: exceedsSitemapSpecUrlLimit(walk),
   };
+}
+
+// One declared sitemap entry, already normalized and de-duplicated by the caller: checks it's
+// same-origin, was actually crawled, is live, canonical, and not noindexed/disallowed. Pulled
+// out of run()'s entry loop so that loop only handles per-raw-entry bookkeeping (normalization,
+// entrySet/validatedEntries dedup) and this handles the substantive per-entry validation.
+function validateSitemapEntry(
+  entry: string,
+  ctx: CheckContext,
+  robots: RobotsTxt | undefined,
+  allowed: ReadonlySet<string>,
+  capped: boolean,
+  add: AddFinding,
+): { skippedUnverifiable: boolean } {
+  if (!allowed.has(new URL(entry).origin)) {
+    add(
+      "warning",
+      entry,
+      `Sitemap lists a cross-origin URL: ${entry}`,
+      "A sitemap should only list URLs on its own host.",
+    );
+    return { skippedUnverifiable: false };
+  }
+  const page = ctx.pages.get(entry);
+  if (page === undefined) {
+    if (capped) return { skippedUnverifiable: true };
+    add(
+      "error",
+      entry,
+      `Sitemap lists ${entry}, which could not be fetched during the crawl.`,
+      "Remove dead URLs from the sitemap or restore the pages.",
+    );
+    return { skippedUnverifiable: false };
+  }
+  if (page.status >= 400) {
+    add(
+      "error",
+      entry,
+      `Sitemap lists ${entry}, which returns HTTP ${String(page.status)}.`,
+      "Sitemaps must only list live (200) pages — remove or fix this entry.",
+    );
+    return { skippedUnverifiable: false };
+  }
+  if (page.redirected || page.finalUrl !== page.url) {
+    add(
+      "warning",
+      entry,
+      `Sitemap lists ${entry}, which redirects to ${page.finalUrl}.`,
+      "List the final canonical URL directly instead of a redirecting one.",
+    );
+  } else {
+    // Header-based noindex (e.g. X-Robots-Tag on a PDF) can apply to any
+    // stored entry, HTML or not; only the meta-tag/canonical checks need a body.
+    const meta = page.body !== "" ? extractPageMeta(pageDom(page)) : undefined;
+    if ((meta?.metaNoindex ?? false) || headerNoindex(page)) {
+      add(
+        "error",
+        entry,
+        `Sitemap lists ${entry}, which is marked noindex.`,
+        "Remove noindexed pages from the sitemap — the two signals contradict each other.",
+      );
+    } else if (meta !== undefined && meta.canonicals.length === 1) {
+      const canonical = normalizePageUrl(meta.canonicals[0] ?? "", page.finalUrl);
+      if (canonical !== undefined && canonical !== entry && canonical !== page.finalUrl) {
+        add(
+          "warning",
+          entry,
+          `Sitemap lists ${entry}, whose canonical points at ${canonical}.`,
+          "List the canonical URL in the sitemap instead.",
+        );
+      }
+    }
+  }
+  if (robots !== undefined && isDisallowed(entry, robots)) {
+    add(
+      "error",
+      entry,
+      `Sitemap lists ${entry}, which robots.txt disallows.`,
+      "Remove the entry from the sitemap or the Disallow rule from robots.txt.",
+    );
+  }
+  return { skippedUnverifiable: false };
 }
 
 export const sitemapRobotsCheck: Check = {
@@ -236,76 +334,15 @@ export const sitemapRobotsCheck: Check = {
         if (validatedEntries.has(entry)) continue;
         validatedEntries.add(entry);
 
-        if (!allowed.has(new URL(entry).origin)) {
-          add(
-            "warning",
-            entry,
-            `Sitemap lists a cross-origin URL: ${entry}`,
-            "A sitemap should only list URLs on its own host.",
-          );
-          continue;
-        }
-        const page = ctx.pages.get(entry);
-        if (page === undefined) {
-          if (capped) {
-            skippedUnverifiable += 1;
-            continue;
-          }
-          add(
-            "error",
-            entry,
-            `Sitemap lists ${entry}, which could not be fetched during the crawl.`,
-            "Remove dead URLs from the sitemap or restore the pages.",
-          );
-          continue;
-        }
-        if (page.status >= 400) {
-          add(
-            "error",
-            entry,
-            `Sitemap lists ${entry}, which returns HTTP ${String(page.status)}.`,
-            "Sitemaps must only list live (200) pages — remove or fix this entry.",
-          );
-          continue;
-        }
-        if (page.redirected || page.finalUrl !== page.url) {
-          add(
-            "warning",
-            entry,
-            `Sitemap lists ${entry}, which redirects to ${page.finalUrl}.`,
-            "List the final canonical URL directly instead of a redirecting one.",
-          );
-        } else {
-          // Header-based noindex (e.g. X-Robots-Tag on a PDF) can apply to any
-          // stored entry, HTML or not; only the meta-tag/canonical checks need a body.
-          const meta = page.body !== "" ? extractPageMeta(pageDom(page)) : undefined;
-          if ((meta?.metaNoindex ?? false) || headerNoindex(page)) {
-            add(
-              "error",
-              entry,
-              `Sitemap lists ${entry}, which is marked noindex.`,
-              "Remove noindexed pages from the sitemap — the two signals contradict each other.",
-            );
-          } else if (meta !== undefined && meta.canonicals.length === 1) {
-            const canonical = normalizePageUrl(meta.canonicals[0] ?? "", page.finalUrl);
-            if (canonical !== undefined && canonical !== entry && canonical !== page.finalUrl) {
-              add(
-                "warning",
-                entry,
-                `Sitemap lists ${entry}, whose canonical points at ${canonical}.`,
-                "List the canonical URL in the sitemap instead.",
-              );
-            }
-          }
-        }
-        if (robots !== undefined && isDisallowed(entry, robots)) {
-          add(
-            "error",
-            entry,
-            `Sitemap lists ${entry}, which robots.txt disallows.`,
-            "Remove the entry from the sitemap or the Disallow rule from robots.txt.",
-          );
-        }
+        const { skippedUnverifiable: wasSkipped } = validateSitemapEntry(
+          entry,
+          ctx,
+          robots,
+          allowed,
+          capped,
+          add,
+        );
+        if (wasSkipped) skippedUnverifiable += 1;
       }
     }
 
