@@ -24,7 +24,13 @@ describe("fetchSitemapUrls", () => {
         res.end(urlset(`http://127.0.0.1:${new URL(server?.url ?? "").port}`));
       } else res.end("ok");
     });
-    const urls = await fetchSitemapUrls(createFetcher(), server.url);
+    const origin = new URL(server.url).origin;
+    const urls = await fetchSitemapUrls(
+      createFetcher(),
+      [`${server.url}/sitemap.xml`],
+      500,
+      new Set([origin]),
+    );
     expect(urls).toEqual([`${server.url}/`, `${server.url}/about`]);
   });
 
@@ -46,7 +52,48 @@ describe("fetchSitemapUrls", () => {
         res.end();
       }
     });
-    expect(await fetchSitemapUrls(createFetcher(), server.url)).toEqual([`${server.url}/deep`]);
+    const origin = new URL(server.url).origin;
+    expect(
+      await fetchSitemapUrls(
+        createFetcher(),
+        [`${server.url}/sitemap.xml`],
+        500,
+        new Set([origin]),
+      ),
+    ).toEqual([`${server.url}/deep`]);
+  });
+
+  it("merges results from multiple declared sitemaps, deduping overlaps", async () => {
+    server = await startServer((req, res) => {
+      const origin = server?.url ?? "";
+      res.setHeader("content-type", "application/xml");
+      if (req.url === "/sitemap-products.xml") {
+        res.end(`<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>${origin}/products/a</loc></url>
+          <url><loc>${origin}/shared</loc></url>
+        </urlset>`);
+      } else if (req.url === "/sitemap-blog.xml") {
+        res.end(`<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>${origin}/blog/a</loc></url>
+          <url><loc>${origin}/shared</loc></url>
+        </urlset>`);
+      } else {
+        res.statusCode = 404;
+        res.end();
+      }
+    });
+    const origin = new URL(server.url).origin;
+    const urls = await fetchSitemapUrls(
+      createFetcher(),
+      [`${server.url}/sitemap-products.xml`, `${server.url}/sitemap-blog.xml`],
+      500,
+      new Set([origin]),
+    );
+    expect(urls).toEqual([
+      `${server.url}/products/a`,
+      `${server.url}/shared`,
+      `${server.url}/blog/a`,
+    ]);
   });
 
   it("returns [] when the sitemap is missing or malformed", async () => {
@@ -57,13 +104,29 @@ describe("fetchSitemapUrls", () => {
         res.end();
       }
     });
-    expect(await fetchSitemapUrls(createFetcher(), server.url)).toEqual([]);
+    const origin = new URL(server.url).origin;
+    expect(
+      await fetchSitemapUrls(
+        createFetcher(),
+        [`${server.url}/sitemap.xml`],
+        500,
+        new Set([origin]),
+      ),
+    ).toEqual([]);
     const missing = await startServer((_req, res) => {
       res.statusCode = 404;
       res.end();
     });
     try {
-      expect(await fetchSitemapUrls(createFetcher(), missing.url)).toEqual([]);
+      const missingOrigin = new URL(missing.url).origin;
+      expect(
+        await fetchSitemapUrls(
+          createFetcher(),
+          [`${missing.url}/sitemap.xml`],
+          500,
+          new Set([missingOrigin]),
+        ),
+      ).toEqual([]);
     } finally {
       await missing.close();
     }
@@ -80,12 +143,19 @@ describe("fetchSitemapUrls", () => {
     });
     const serverOrigin = new URL(server.url).origin;
 
-    expect(await fetchSitemapUrls(createFetcher(), server.url)).toEqual([]);
+    expect(
+      await fetchSitemapUrls(
+        createFetcher(),
+        [`${server.url}/sitemap.xml`],
+        500,
+        new Set([serverOrigin]),
+      ),
+    ).toEqual([]);
 
     expect(
       await fetchSitemapUrls(
         createFetcher(),
-        server.url,
+        [`${server.url}/sitemap.xml`],
         500,
         new Set([serverOrigin, "https://example.com"]),
       ),
@@ -106,6 +176,9 @@ describe("fetchSitemapUrls", () => {
         );
       } else res.end("ok");
     });
-    expect(await fetchSitemapUrls(createFetcher(), server.url, 5)).toHaveLength(5);
+    const origin = new URL(server.url).origin;
+    expect(
+      await fetchSitemapUrls(createFetcher(), [`${server.url}/sitemap.xml`], 5, new Set([origin])),
+    ).toHaveLength(5);
   });
 });

@@ -4,8 +4,10 @@ import type {
   FetchResult,
   PageStore,
   RateLimitedFetch,
+  RobotsFetchResult,
 } from "../types.js";
 import { extractLinks } from "./extract-links.js";
+import { parseRobotsTxt, resolveSitemapUrls, type RobotsTxt } from "./robots.js";
 import { fetchSitemapUrls } from "./sitemap.js";
 import { normalizePageUrl } from "./url.js";
 
@@ -24,7 +26,10 @@ function isHtmlContentType(headers: Record<string, string>): boolean {
 
 class SitePageStore implements PageStore {
   private readonly pages = new Map<string, CrawledPage>();
-  constructor(private readonly crawlStats: CrawlStats) {}
+  constructor(
+    private readonly crawlStats: CrawlStats,
+    private readonly robotsResult: RobotsFetchResult,
+  ) {}
 
   set(page: CrawledPage): void {
     this.pages.set(page.url, page);
@@ -41,6 +46,9 @@ class SitePageStore implements PageStore {
   }
   stats(): CrawlStats {
     return { ...this.crawlStats };
+  }
+  robots(): RobotsFetchResult {
+    return this.robotsResult;
   }
 }
 
@@ -62,7 +70,6 @@ export async function crawlSite(options: CrawlOptions): Promise<PageStore> {
 
   const allowedOrigins = allowedOriginsFor(new URL(base));
   const stats: CrawlStats = { pagesDiscovered: 0, pagesScanned: 0, capped: false };
-  const store = new SitePageStore(stats);
 
   const discovered = new Set<string>();
   const queue: string[] = [];
@@ -79,7 +86,26 @@ export async function crawlSite(options: CrawlOptions): Promise<PageStore> {
   };
 
   enqueue(base);
-  for (const url of await fetchSitemapUrls(fetchFn, new URL(base).origin, maxPages, allowedOrigins))
+
+  // Fetched once here and reused by seo.sitemap-robots via PageStore#robots() instead of
+  // being fetched a second time — same fetcher, no caching, so a second fetch would be a
+  // real extra round-trip for identical content every single review.
+  const origin = new URL(base).origin;
+  const robotsUrl = new URL("/robots.txt", origin).href;
+  let robots: RobotsTxt | undefined;
+  let robotsStatus: number | undefined;
+  try {
+    const response = await fetchFn(robotsUrl);
+    robotsStatus = response.status;
+    if (response.status === 200) robots = parseRobotsTxt(response.body);
+  } catch {
+    // robots.txt unreachable — fall back to the default /sitemap.xml guess below;
+    // robotsStatus stays undefined, which seo.sitemap-robots reads as "could not be fetched"
+  }
+  const store = new SitePageStore(stats, { parsed: robots, status: robotsStatus });
+
+  const { urls: sitemapUrls } = resolveSitemapUrls(robots, origin, robotsUrl, allowedOrigins);
+  for (const url of await fetchSitemapUrls(fetchFn, sitemapUrls, maxPages, allowedOrigins))
     enqueue(url);
 
   const visit = async (url: string): Promise<void> => {

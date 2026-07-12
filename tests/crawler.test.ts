@@ -63,6 +63,29 @@ describe("crawlSite", () => {
     expect(store.get(`${server.url}/orphan`)?.status).toBe(200);
   });
 
+  it("seeds from a non-default sitemap declared in robots.txt", async () => {
+    server = await startServer((req, res) => {
+      if (req.url === "/robots.txt") {
+        res.end(`User-agent: *\nDisallow:\n\nSitemap: ${server?.url ?? ""}/sitemap-index.xml\n`);
+        return;
+      }
+      if (req.url === "/sitemap-index.xml") {
+        res.setHeader("content-type", "application/xml");
+        res.end(
+          `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${server?.url ?? ""}/orphan</loc></url></urlset>`,
+        );
+        return;
+      }
+      // deliberately do NOT serve /sitemap.xml — proves seeding isn't hardcoded to it
+      siteHandler({
+        "/": { body: page([]) },
+        "/orphan": { body: page([]) },
+      })(req, res);
+    });
+    const store = await crawlSite({ baseUrl: server.url, fetch: createFetcher() });
+    expect(store.get(`${server.url}/orphan`)?.status).toBe(200);
+  });
+
   it("caps discovery at maxPages and reports capped", async () => {
     const links = Array.from({ length: 10 }, (_v, i) => `/p${String(i)}`);
     const routes: Record<string, { body: string }> = { "/": { body: page(links) } };

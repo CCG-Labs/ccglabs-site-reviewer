@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isDisallowed, parseRobotsTxt } from "../src/checks/seo/robots.js";
+import {
+  isDisallowed,
+  parseRobotsTxt,
+  resolveSitemapUrls,
+  type RobotsTxt,
+} from "../src/crawl/robots.js";
 
 describe("parseRobotsTxt", () => {
   it("collects disallow/allow rules from the wildcard group and sitemap lines", () => {
@@ -69,5 +74,100 @@ Disallow: /wild*card
     const blanket = parseRobotsTxt("User-agent: *\nDisallow: /\n");
     expect(isDisallowed("https://example.com/", blanket)).toBe(true);
     expect(isDisallowed("https://example.com/anything", blanket)).toBe(true);
+  });
+  it("conservatively returns false for an unparseable URL", () => {
+    expect(isDisallowed("not a url", robots)).toBe(false);
+  });
+});
+
+describe("resolveSitemapUrls", () => {
+  const origin = "https://example.com";
+  const robotsUrl = "https://example.com/robots.txt";
+  const allowed = new Set(["https://example.com"]);
+
+  it("falls back to the /sitemap.xml guess when robots.txt is absent", () => {
+    expect(resolveSitemapUrls(undefined, origin, robotsUrl, allowed)).toEqual({
+      urls: ["https://example.com/sitemap.xml"],
+      source: "default",
+      truncated: false,
+    });
+  });
+
+  it("falls back to the guess when robots.txt declares no sitemap", () => {
+    const robots: RobotsTxt = { wildcardDisallows: [], wildcardAllows: [], sitemaps: [] };
+    expect(resolveSitemapUrls(robots, origin, robotsUrl, allowed)).toEqual({
+      urls: ["https://example.com/sitemap.xml"],
+      source: "default",
+      truncated: false,
+    });
+  });
+
+  it("prefers a declared sitemap over the default guess", () => {
+    const robots: RobotsTxt = {
+      wildcardDisallows: [],
+      wildcardAllows: [],
+      sitemaps: ["https://example.com/sitemap-index.xml"],
+    };
+    expect(resolveSitemapUrls(robots, origin, robotsUrl, allowed)).toEqual({
+      urls: ["https://example.com/sitemap-index.xml"],
+      source: "robots",
+      truncated: false,
+    });
+  });
+
+  it("returns every declared sitemap, deduped, in declaration order", () => {
+    const robots: RobotsTxt = {
+      wildcardDisallows: [],
+      wildcardAllows: [],
+      sitemaps: [
+        "https://example.com/sitemap-products.xml",
+        "https://example.com/sitemap-blog.xml",
+        "https://example.com/sitemap-products.xml",
+      ],
+    };
+    expect(resolveSitemapUrls(robots, origin, robotsUrl, allowed)).toEqual({
+      urls: ["https://example.com/sitemap-products.xml", "https://example.com/sitemap-blog.xml"],
+      source: "robots",
+      truncated: false,
+    });
+  });
+
+  it("resolves a relative Sitemap: line against robots.txt's own URL", () => {
+    const robots: RobotsTxt = {
+      wildcardDisallows: [],
+      wildcardAllows: [],
+      sitemaps: ["/sitemap-index.xml"],
+    };
+    expect(resolveSitemapUrls(robots, origin, robotsUrl, allowed)).toEqual({
+      urls: ["https://example.com/sitemap-index.xml"],
+      source: "robots",
+      truncated: false,
+    });
+  });
+
+  it("drops a foreign-origin declared sitemap and falls back to the default guess", () => {
+    const robots: RobotsTxt = {
+      wildcardDisallows: [],
+      wildcardAllows: [],
+      sitemaps: ["https://cdn.elsewhere.invalid/sitemap.xml"],
+    };
+    expect(resolveSitemapUrls(robots, origin, robotsUrl, allowed)).toEqual({
+      urls: ["https://example.com/sitemap.xml"],
+      source: "default",
+      truncated: false,
+    });
+  });
+
+  it("caps declared sitemaps at MAX_DECLARED_SITEMAPS and reports truncation", () => {
+    const sitemaps = Array.from(
+      { length: 30 },
+      (_unused, index) => `https://example.com/sitemap-${String(index)}.xml`,
+    );
+    const robots: RobotsTxt = { wildcardDisallows: [], wildcardAllows: [], sitemaps };
+    const result = resolveSitemapUrls(robots, origin, robotsUrl, allowed);
+    expect(result.urls).toHaveLength(25);
+    expect(result.urls).toEqual(sitemaps.slice(0, 25));
+    expect(result.source).toBe("robots");
+    expect(result.truncated).toBe(true);
   });
 });

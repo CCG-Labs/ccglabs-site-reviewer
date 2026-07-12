@@ -1,5 +1,5 @@
 import { normalizePageUrl } from "../../src/crawl/url.js";
-import type { CrawledPage, CrawlStats, PageStore } from "../../src/types.js";
+import type { CrawledPage, CrawlStats, PageStore, RobotsFetchResult } from "../../src/types.js";
 
 export function fixturePage(page: Partial<CrawledPage> & { url: string }): CrawledPage {
   const url = normalizePageUrl(page.url) ?? page.url;
@@ -19,6 +19,7 @@ export function fixturePage(page: Partial<CrawledPage> & { url: string }): Crawl
 export function fixturePageStore(
   pages: Array<Partial<CrawledPage> & { url: string }> = [],
   stats: Partial<CrawlStats> = {},
+  robots: Partial<RobotsFetchResult> = {},
 ): PageStore {
   const records = pages.map(fixturePage);
   const byUrl = new Map(records.map((record) => [record.url, record]));
@@ -33,5 +34,6 @@ export function fixturePageStore(
       capped: false,
       ...stats,
     }),
+    robots: () => ({ parsed: undefined, status: undefined, ...robots }),
   };
 }
