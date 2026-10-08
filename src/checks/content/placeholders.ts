@@ -1,5 +1,4 @@
-import type { Cheerio, CheerioAPI } from "cheerio";
-import type { AnyNode } from "domhandler";
+import type { CheerioAPI } from "cheerio";
 import { pageDom } from "../../crawl/page-dom.js";
 import type { Check, CheckContext, Finding } from "../../types.js";
 
@@ -51,11 +50,11 @@ function placeholderOptions(ctx: CheckContext): PlaceholderOptions {
  * Operates on a CLONE — the shared pageDom handle is never mutated.
  */
 export function extractVisibleText($: CheerioAPI): string {
-  const body = $("body");
-  const root: Cheerio<AnyNode> = body.length > 0 ? body : $.root();
-  const clone = root.clone();
+  const clone = $.root().clone();
   clone.find("script, style, noscript, template, pre, code").remove();
-  return clone.text().replace(/\s+/g, " ").trim();
+  const body = clone.find("body");
+  const text = body.length > 0 ? body.text() : clone.text();
+  return text.replace(/\s+/g, " ").trim();
 }
 
 const excerpt = (text: string, index: number): string => {
