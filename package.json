@@ -75,19 +75,19 @@
     "domhandler": "^6.0.1",
     "eslint": "^10.6.0",
     "eslint-plugin-security": "^4.0.1",
-    "lighthouse": "^13.4.0",
+    "lighthouse": "^13.5.0",
     "playwright": "^1.61.1",
     "prettier": "^3.9.5",
     "publint": "^0.3.21",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.63.0",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
     "commander": "^15.0.0",
     "jiti": "^2.7.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.5"
   }
 }
