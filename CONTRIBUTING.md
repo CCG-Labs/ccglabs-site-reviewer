@@ -10,8 +10,8 @@ tight control over what goes into it.
 
 - **Issues are welcome.** Bug reports, false positives/negatives from a
   check, and well-described feature ideas all help.
-- **Pull requests are not accepted.** They are disabled for non-collaborators
-  and any that slip through will be closed without review. This is a
+- **Pull requests are not accepted.** Any that are opened will
+  be closed without review. This is a
   scope decision, not a judgement of your work.
 - **Forks are welcome.** The [Apache-2.0 license](LICENSE) lets you copy,
   modify, and redistribute this project, including commercially. If you

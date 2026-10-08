@@ -36,7 +36,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "NOTICE"
   ],
   "peerDependencies": {
     "@axe-core/playwright": ">=4 <5",

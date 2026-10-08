@@ -20,7 +20,7 @@ body:
     attributes:
       label: Command or config used
       description: The `site-review` command or `runReview` call, plus any config (redacted).
-      render: shell
+      render: text
     validations:
       required: true
   - type: textarea
