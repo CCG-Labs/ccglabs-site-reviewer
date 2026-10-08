@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Open-source release readiness: `LICENSE` (Apache-2.0), `NOTICE`, `CONTRIBUTING.md` (issues
+  welcome, pull requests not accepted, forks encouraged), and bug-report / feature-request issue
+  templates.
+- `package.json` now carries `author`, `repository`, `bugs`, `homepage`, and `keywords`.
+
 ### Fixed
 
 - `seo.sitemap-robots` now discovers a site's sitemap(s) by reading `robots.txt` `Sitemap:`
@@ -21,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `package.json` `license` corrected from `MIT` to `Apache-2.0`. No LICENSE file previously
+  existed and the package was never published, so no released version was ever under MIT.
 - Cross-origin child sitemaps referenced from a sitemap index (a legitimate multi-subdomain
   pattern) are now warned about, not conflated with same-origin children that genuinely fail to
   fetch.

@@ -5,9 +5,17 @@ checks (SEO, security, performance, accessibility, content), and emit a
 scored, machine-readable JSON report with a pass/fail grade and
 recommendations for every failure.
 
-Status: under active development. See
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+Status: pre-1.0, under active development. See
 `docs/superpowers/specs/2026-07-03-site-reviewer-design.md` for the
 design and roadmap.
+
+> **Open source, not open to contributions.** This is a utility CCG Labs
+> relies on in its own business. You're free to use it and to fork it and
+> change whatever you like ([Apache-2.0](LICENSE)). Bug reports and ideas
+> are welcome as [issues](https://github.com/CCG-Labs/ccglabs-site-reviewer/issues),
+> but pull requests are not accepted. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## CLI
 
@@ -157,3 +165,17 @@ export default defineConfig({
   environments: { production: { failThreshold: 90 } },
 });
 ```
+
+## Support and contributing
+
+- **Bugs and ideas:** open an [issue](https://github.com/CCG-Labs/ccglabs-site-reviewer/issues)
+  using the templates. Triage is best-effort with no SLA.
+- **Pull requests:** not accepted. Fork the project if you want to take it in a
+  different direction. Details in [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Security vulnerabilities:** report privately; see [SECURITY.md](SECURITY.md).
+
+## License
+
+[Apache License 2.0](LICENSE). Copyright 2026 CCG Labs; see [NOTICE](NOTICE).
+The license does not grant rights to the CCG Labs name or logos, so forks
+should publish under their own name.

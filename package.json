@@ -6,7 +6,24 @@
   "engines": {
     "node": ">=20"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "author": "CCG Labs (https://ccglabs.net)",
+  "homepage": "https://github.com/CCG-Labs/ccglabs-site-reviewer#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CCG-Labs/ccglabs-site-reviewer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CCG-Labs/ccglabs-site-reviewer/issues"
+  },
+  "keywords": [
+    "seo",
+    "website-audit",
+    "accessibility",
+    "lighthouse",
+    "quality-assurance",
+    "cli"
+  ],
   "bin": {
     "site-review": "./dist/cli.js"
   },
