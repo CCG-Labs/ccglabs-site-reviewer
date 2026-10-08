@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest a new check or an improvement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Requests are considered on a best-effort basis and may be declined if they
+        don't fit the project's scope. You're always free to
+        [fork](https://github.com/CCG-Labs/ccglabs-site-reviewer/fork) and build it yourself.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to see?
+      description: For a new check, say what it should verify and how a failure should read.
+    validations:
+      required: true

@@ -1,0 +1,45 @@
+name: Bug report
+description: A check misbehaves, a false positive/negative, or the tool crashes
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. This project accepts issues but **not pull requests**
+        (see [CONTRIBUTING.md](https://github.com/CCG-Labs/ccglabs-site-reviewer/blob/main/CONTRIBUTING.md)).
+        Do not paste secrets or auth headers. Security issues go through
+        [private reporting](https://github.com/CCG-Labs/ccglabs-site-reviewer/security/advisories/new).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Command or config used
+      description: The `site-review` command or `runReview` call, plus any config (redacted).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Relevant report output
+      description: The failing check's entry from the JSON report, or the error message.
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: "@ccglabs/site-reviewer version"
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version and OS
+      placeholder: "Node 22.11, Ubuntu 24.04"
+    validations:
+      required: true
