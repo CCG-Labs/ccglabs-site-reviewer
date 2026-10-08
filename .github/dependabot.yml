@@ -10,11 +10,11 @@ updates:
     ignore:
       # typescript-eslint peers on typescript <6.1.0; revisit when it supports 7.
       - dependency-name: typescript
-        update-types: ["version-update:semver-major"]
+        versions: [">=6.1.0"]
       # vitest 5 requires Node >=22.12; CI and engines target Node 20.
       - dependency-name: vitest
         update-types: ["version-update:semver-major"]
-      - dependency-name: "@vitest/coverage-v8"
+      - dependency-name: "@vitest/*"
         update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
@@ -24,4 +24,5 @@ updates:
       # init and analyze must run the same version, so update them together.
       codeql-action:
         patterns:
+          - "github/codeql-action"
           - "github/codeql-action/*"
