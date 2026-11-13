@@ -86,7 +86,7 @@
   },
   "dependencies": {
     "cheerio": "^1.2.0",
-    "commander": "^15.0.0",
+    "commander": "^15.1.0",
     "jiti": "^2.7.0",
     "zod": "^4.6.5"
   }
